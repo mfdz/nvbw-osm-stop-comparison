@@ -1,0 +1,2 @@
+osmium==2.15.2
+spatialite==0.0.3
