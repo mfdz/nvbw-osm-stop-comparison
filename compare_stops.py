@@ -249,7 +249,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 	def extract_stop_type(self, tags):
 		if tags.get('public_transport') == 'station':
 			return 'station' 
-		elif tags.get('highway') == 'bus_stop' or tags.get('railway') == 'stop' or tags.get('railway') == 'tram_stop':
+		elif tags.get('highway') == 'bus_stop' or tags.get('railway') in ['stop','tram_stop'] or (tags.get('public_transport') == 'stop_position' and not tags.get('bus') == 'yes'):
 			return 'stop'
 		elif tags.get('public_transport') == 'platform':
 			return 'platform'
