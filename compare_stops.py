@@ -96,14 +96,14 @@ class StopsImporter():
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
 						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
 						ELSE NULL
-					END mode, NULL parent, match_state FROM haltestellen where lon_Steig IS NULL AND (match_state IS NULL or match_state='matched')
+					END mode, NULL parent, match_state FROM haltestellen where lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID IS NOT NULL
 				UNION
 				select Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAb, gueltigBis, lon_Steig, lat_Steig, 'Steig' Art, Name_Steig, 
 				CASE 
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
 						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
 						ELSE NULL
-					END mode, globaleID parent, match_state FROM haltestellen where lon_Steig IS NOT NULL 
+					END mode, globaleID parent, match_state FROM haltestellen where lon_Steig IS NOT NULL AND globaleID_Steig IS NOT NULL
 					AND (match_state IS NULL or match_state='matched')
 			""")
 			cur.execute("DELETE FROM haltestellen_unified WHERE globaleID IN (SELECT parent FROM haltestellen_unified)")
@@ -251,6 +251,8 @@ class OsmStopHandler(osmium.SimpleHandler):
 			return 'station' 
 		elif tags.get('highway') == 'bus_stop' or tags.get('railway') == 'stop' or tags.get('railway') == 'tram_stop':
 			return 'stop'
+		elif tags.get('public_transport') == 'platform':
+			return 'platform'
 		elif tags.get('railway') == 'halt':
 			return 'halt'
 		else:
@@ -288,7 +290,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 		(short_name_matched, matched_name) = (False, stop["Haltestelle_lang"]) if name_distance_short_name < name_distance_long_name else (True, stop["Haltestelle"])
 		name_distance = max(name_distance_short_name, name_distance_long_name)
 		platform_id = stop["globaleID"]
-		ifopt_platform = ''.join(filter(str.isdigit, platform_id[platform_id.rfind(":"):])) if platform_id.count(':') > 2 else None
+		ifopt_platform = ''.join(filter(str.isdigit, platform_id[platform_id.rfind(":"):])) if platform_id and platform_id.count(':') > 2 else None
 		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
 		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
 		successor_ranking = self.rank_successor_matching(stop, candidate)
@@ -429,7 +431,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 								  FROM osm_stops h, osm_stops s
 								 WHERE h.type IN ('halt', 'station')
 								   AND h.name = s.name 
-								   AND s.type='stop' 
+								   AND s.type IN ('stop', 'platform') 
 								   AND s.mode NOT IN ('bus', 'tram')
 								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
@@ -515,18 +517,40 @@ class OsmStopHandler(osmium.SimpleHandler):
 		self.check_not_matched('de:08111:6015:0:3',271654026)
 		self.check_matched('de:08111:6015:0:4',271654026) # Waldburgstra
 		self.check_not_matched('de:08111:6015:0:4',271653920) # Waldburgstra
+
+	def update_match_statistics(self):
+		self.db.execute("""UPDATE haltestellen_unified 
+			                  SET match_state='MATCHED' 
+			                WHERE globaleID IN (SELECT ifopt_id FROM matches)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_AMBIGOUSLY' 
+							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_NAMES_DIFFER' 
+			                WHERE globaleID IN (SELECT ifopt_id FROM matches WHERE name_distance < 0.3 AND rating > 0.002)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_OSM_NO_NAME' 
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m, osm_stops o WHERE o.name IS NULL AND m.osm_id = o.node_id)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_DISTANT' 
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE distance > 200 AND rating > 0.002)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH' 
+							WHERE globaleID NOT IN (SELECT ifopt_id FROM matches);""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_BUT_OTHER_PLATFORM_MATCHED' 
+							WHERE match_state='NO_MATCH' AND PARENT IN (SELECT h.parent FROM matches m, haltestellen_unified h WHERE m.ifopt_id = h.globaleID)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_NO_IFOPT' 
+							WHERE globaleID IS NULL""")
+		self.db.commit()
 		
 def main(osmfile, stops_file):
-	statshandler = OsmStopHandler(import_osm = False, import_haltestellen = True, stops_file = stops_file, osm_file = osmfile)
+	statshandler = OsmStopHandler(import_osm = True, import_haltestellen = True, stops_file = stops_file, osm_file = osmfile)
 	
 	print("Loaded osm file")
-	#statshandler.match_stops()
+	statshandler.match_stops()
 	print("Found candidates")
-	#statshandler.export_match_candidates()
+	statshandler.export_match_candidates()
 	print("Exported candidates")
-	#statshandler.pick_matches()
-	#statshandler.check_assertions()
-	#statshandler.done()
+	statshandler.pick_matches()
+	statshandler.check_assertions()
+	statshandler.update_match_statistics()
+	statshandler.done()
+
 
 	return 0
 
