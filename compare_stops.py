@@ -14,10 +14,104 @@ import traceback
 
 from osm_stop_matcher.MatchPicker import best_unique_matches
 
+def drop_table_if_exists(db, table):
+	try:
+		db.execute("DROP TABLE {}".format(table))
+	except:
+		pass
+
+def xstr(str):
+	return None if '' == str else str
+
 class StopsError():
 	def __init__(self, id, message):
 		self.id = id
 		self.message = message
+
+class StopsImporter():
+	def __init__(self, connection):
+		self.db = connection
+		
+	def import_stops(self, stops_file):
+		drop_table_if_exists(self.db, "haltestellen")
+		drop_table_if_exists(self.db, "haltestellen_unified")
+		cur = self.db.cursor()
+		cur.execute("""CREATE TABLE haltestellen (Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, 
+			HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon REAL, lat REAL, Name_Bereich, globaleID_Bereich, 
+			lon_Bereich REAL, lat_Bereich REAL, Name_Steig, globaleID_Steig, lon_Steig REAL, lat_Steig REAL, 
+			Fuss_Verbindung, Fahrrad_Verbindung, Individualverkehr_Verbindung, Bus_Verbindung, Strassenbahn_Verbindung, 
+			Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung, match_state)""") 
+
+		with open(stops_file,'r',encoding='iso-8859-1') as csvfile:
+			dr = csv.DictReader(csvfile, delimiter=';', quotechar='"')
+			to_db = [(
+				xstr(row['Landkreis']), 
+				xstr(row['Gemeinde']), 
+				xstr(row['Ortsteil']),
+				xstr(row['Haltestelle']),
+				xstr(row['Haltestelle_lang']),
+				xstr(row['HalteBeschreibung']),
+				xstr(row['globaleID']),
+				xstr(row['HalteTyp']),
+				xstr(row['gueltigAb']),
+				xstr(row['gueltigBis']),
+				float(row['lon']) if row['lon'] else None, 
+				float(row['lat']) if row['lat'] else None,
+				xstr(row['Name_Bereich']),
+				xstr(row['globaleID_Bereich']), 
+				float(row['lon_Bereich']) if row['lon_Bereich'] else None, 
+				float(row['lat_Bereich']) if row['lat_Bereich'] else None, 
+				xstr(row['Name_Steig']),
+				xstr(row['globaleID_Steig']),
+				float(row['lon_Steig']) if row['lon_Steig'] else None, 
+				float(row['lat_Steig']) if row['lat_Steig'] else None, 
+				xstr(row['Fuss_Verbindung']),
+				xstr(row['Fahrrad_Verbindung']),
+				xstr(row['Individualverkehr_Verbindung']),
+				xstr(row['Bus_Verbindung']),
+				xstr(row['Strassenbahn_Verbindung']),
+				xstr(row['Schmalspurbahn_Verbindung']),
+				xstr(row['Eisenbahn_Verbindung']),
+				xstr(row['Faehren_Verbindung']),
+				) for row in dr]
+
+			cur.executemany("""INSERT INTO haltestellen (Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, 
+					HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, Name_Bereich, globaleID_Bereich, 
+					lon_Bereich, lat_Bereich, Name_Steig, globaleID_Steig, lon_Steig, lat_Steig, 
+					Fuss_Verbindung, Fahrrad_Verbindung, Individualverkehr_Verbindung, Bus_Verbindung, Strassenbahn_Verbindung, 
+					Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung) VALUES (?{})""".format(",?"*27), to_db)
+
+			cur.execute("UPDATE haltestellen SET match_state = 'no_x_ride' WHERE Name_Bereich like '%+R%' AND match_state IS NULL")
+			cur.execute("UPDATE haltestellen SET match_state = 'no_entry' WHERE Name_Bereich like '%ugang%' OR Name_Steig like '%ugang%' AND match_state IS NULL")
+			cur.execute("UPDATE haltestellen SET match_state = 'no_replacement' WHERE (Haltestelle like '%rsatz%' OR Haltestelle like '%SEV%' OR Name_Bereich like '%rsatz%' OR Name_Bereich like '%SEV%' OR Name_Steig like '%rsatz%' OR Name_Steig like '%SEV%' ) AND match_state IS NULL")
+			cur.execute("UPDATE haltestellen SET match_state = 'no_extraterritorial' WHERE HalteTyp like '%Netzbereich%' AND match_state IS NULL")
+			cur.execute("SELECT InitSpatialMetaData()")
+			cur.execute("SELECT AddGeometryColumn('haltestellen', 'the_geom', 4326, 'POINT','XY')")
+			cur.execute("UPDATE haltestellen SET the_geom = MakePoint(lon_Steig,lat_Steig, 4326) WHERE lon_Steig is NOT NULL")
+			cur.execute("CREATE INDEX id_steig_idx ON haltestellen(globaleID_Steig)")
+		
+			cur.execute("""CREATE TABLE haltestellen_unified AS
+				select Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, 'Halt' Art , NULL Name_Steig, 
+					CASE 
+						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
+						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
+						ELSE NULL
+					END mode, NULL parent, match_state FROM haltestellen where lon_Steig IS NULL AND (match_state IS NULL or match_state='matched')
+				UNION
+				select Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAb, gueltigBis, lon_Steig, lat_Steig, 'Steig' Art, Name_Steig, 
+				CASE 
+						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
+						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
+						ELSE NULL
+					END mode, globaleID parent, match_state FROM haltestellen where lon_Steig IS NOT NULL 
+					AND (match_state IS NULL or match_state='matched')
+			""")
+			cur.execute("DELETE FROM haltestellen_unified WHERE globaleID IN (SELECT parent FROM haltestellen_unified)")
+			cur.execute("CREATE INDEX id_idx ON haltestellen_unified(globaleID)")
+			cur.execute("SELECT AddGeometryColumn('haltestellen_unified', 'the_geom', 4326, 'POINT','XY')")
+			cur.execute("UPDATE haltestellen_unified SET the_geom = MakePoint(lon,lat, 4326) WHERE lon is NOT NULL")
+
+			self.db.commit()
 
 class OsmStopHandler(osmium.SimpleHandler):
 	errors = {}
@@ -36,7 +130,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 		self.import_haltestellen = import_haltestellen
 		
 		if self.import_haltestellen:
-			self.perform_haltestellen_import(stops_file)
+			StopsImporter(self.db).import_stops(stops_file)
 		if self.import_osm:
 			self.setup_osm_tables()
 			self.apply_file(osm_file)
@@ -44,11 +138,11 @@ class OsmStopHandler(osmium.SimpleHandler):
 		self.load_osm_index()
 
 	def setup_osm_tables(self):
-		self.drop_table_if_exists('osm_stops')
+		drop_table_if_exists(self.db, 'osm_stops')
 		self.db.execute('''CREATE TABLE osm_stops
-			(node_id INTEGER PRIMARY KEY, name text, network text, operator text, lat real, lon real, type text, ref text, ref_key text, assumed_steig text)''')
+			(node_id INTEGER PRIMARY KEY, name text, network text, operator text, lat real, lon real, mode text, type text, ref text, ref_key text, assumed_platform text)''')
 		
-		self.drop_table_if_exists('successor')
+		drop_table_if_exists(self.db, 'successor')
 		self.db.execute('''CREATE TABLE successor
 			(pred_id INTEGER, succ_id INTEGER)''')	
 
@@ -59,19 +153,21 @@ class OsmStopHandler(osmium.SimpleHandler):
 
 	def node(self, n):
 		tags = n.tags
-		if tags.get('highway') == 'bus_stop' or tags.get('railway') == 'halt' or tags.get('railway') == 'stop' or tags.get('railway') == 'tram_stop':
+		stop_type = self.extract_stop_type(tags)
+		if stop_type:
 			self.counter += 1
 			(ref_key, ref) = self.extract_ref(tags)
-			assumed_steig = self.extract_steig(tags)
+			assumed_platform = self.extract_steig(tags)
 			stop = {
 				"id": n.id,
 				"lat": n.location.lat,
 				"lon": n.location.lon,
 				"tags": {tag.k: tag.v for tag in n.tags},
-				"type": self.extract_stop_mode(tags),
+				"mode": self.extract_stop_mode(tags),
+				"type": stop_type ,
 				"ref": ref,
 				"ref_key": ref_key,
-				"assumed_steig": assumed_steig
+				"assumed_platform": assumed_platform
 			}
 
 			self.store_osm_stop(stop)
@@ -90,10 +186,11 @@ class OsmStopHandler(osmium.SimpleHandler):
 				"operator": stop["operator"],
 				"lat": lat,
 				"lon": lon,
+				"mode": stop["mode"],
 				"type": stop["type"],
 				"ref": stop["ref"],
 				"ref_key": stop["ref_key"],
-				"assumed_steig": stop["assumed_steig"]
+				"assumed_platform": stop["assumed_platform"]
 			}
 			self.osm_stops.insert(id = id, coordinates=(lat, lon, lat, lon), obj= stop)
 
@@ -108,10 +205,11 @@ class OsmStopHandler(osmium.SimpleHandler):
 			stop["tags"].get("operator"),
 			lat,
 			lon,
+			stop["mode"],
 			stop["type"],
 			stop["ref"],
 			stop["ref_key"],
-			stop["assumed_steig"],
+			stop["assumed_platform"],
 			))
 				
 		if self.counter  % 100 == 0:
@@ -148,6 +246,16 @@ class OsmStopHandler(osmium.SimpleHandler):
 			if key in tags and tags[key]=='yes':
 				return key
 
+	def extract_stop_type(self, tags):
+		if tags.get('public_transport') == 'station':
+			return 'station' 
+		elif tags.get('highway') == 'bus_stop' or tags.get('railway') == 'stop' or tags.get('railway') == 'tram_stop':
+			return 'stop'
+		elif tags.get('railway') == 'halt':
+			return 'halt'
+		else:
+			return None
+
 	def extract_ref(self, tags):
 		ordered_ref_keys= ["ref:IFOPT","ref:pt_id"]
 		for key in ordered_ref_keys:
@@ -181,8 +289,8 @@ class OsmStopHandler(osmium.SimpleHandler):
 		name_distance = max(name_distance_short_name, name_distance_long_name)
 		platform_id = stop["globaleID"]
 		ifopt_platform = ''.join(filter(str.isdigit, platform_id[platform_id.rfind(":"):])) if platform_id.count(':') > 2 else None
-		platform_matches = ifopt_platform == str(candidate["assumed_steig"])
-		platform_mismatches = not ifopt_platform == None and not candidate["assumed_steig"] == None and not platform_matches
+		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
+		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
 		successor_ranking = self.rank_successor_matching(stop, candidate)
 		
 		if candidate["ref"] == stop["globaleID"]:
@@ -210,10 +318,10 @@ class OsmStopHandler(osmium.SimpleHandler):
 				return matches
 		   
 			# Ignore bahn candidates when looking for bus_stop
-			if candidate["type"] in ['train','light_rail','tram'] and "Bus" == stop["Mode"]:
+			if candidate["mode"] in ['train','light_rail','tram'] and "Bus" == stop["mode"]:
 				continue
 			# Ignore bus candidates when looking for railway stops
-			if candidate["type"] == 'bus' and "BAHN" == stop["Mode"]:
+			if candidate["mode"] == 'bus' and "BAHN" == stop["mode"]:
 				continue
 			
 			(rating, name_distance, matched_name, osm_name, platform_matches) = self.rank_candidate(stop, candidate, distance)
@@ -245,90 +353,18 @@ class OsmStopHandler(osmium.SimpleHandler):
 		else:
 			self.store_matches(stop, stop_id, matches)
 
-	def perform_haltestellen_import(self,stops_file):
-		self.drop_table_if_exists("haltestellen")
-		self.drop_table_if_exists("haltestellen_unified")
-		cur = self.db.cursor()
-		cur.execute("""CREATE TABLE haltestellen (Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, 
-			HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon REAL, lat REAL, Name_Bereich, globaleID_Bereich, 
-			lon_Bereich REAL, lat_Bereich REAL, Name_Steig, globaleID_Steig, lon_Steig REAL, lat_Steig REAL, 
-			Fuss_Verbindung, Fahrrad_Verbindung, Individualverkehr_Verbindung, Bus_Verbindung, Strassenbahn_Verbindung, 
-			Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung, match_state)""") 
-
-		with open(stops_file,'r',encoding='iso-8859-1') as csvfile:
-			dr = csv.DictReader(csvfile, delimiter=';', quotechar='"')
-			to_db = [(
-				row['Landkreis'], row['Gemeinde'], row['Ortsteil'],row['Haltestelle'],row['Haltestelle_lang'],
-				row['HalteBeschreibung'],
-				row['globaleID'],row['HalteTyp'],row['gueltigAb'],
-				row['gueltigBis'],
-				float(row['lon']) if row['lon'] else None, 
-				float(row['lat']) if row['lat'] else None,
-				row['Name_Bereich'],row['globaleID_Bereich'], 
-				float(row['lon_Bereich']) if row['lon_Bereich'] else None, 
-				float(row['lat_Bereich']) if row['lat_Bereich'] else None, 
-				row['Name_Steig'],row['globaleID_Steig'],
-				float(row['lon_Steig']) if row['lon_Steig'] else None, 
-				float(row['lat_Steig']) if row['lat_Steig'] else None, 
-				row['Fuss_Verbindung'],
-				row['Fahrrad_Verbindung'],
-				row['Individualverkehr_Verbindung'],
-				row['Bus_Verbindung'],
-				row['Strassenbahn_Verbindung'],
-				row['Schmalspurbahn_Verbindung'],
-				row['Eisenbahn_Verbindung'],
-				row['Faehren_Verbindung'],
-				) for row in dr]
-
-			cur.executemany("""INSERT INTO haltestellen (Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, 
-					HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, Name_Bereich, globaleID_Bereich, 
-					lon_Bereich, lat_Bereich, Name_Steig, globaleID_Steig, lon_Steig, lat_Steig, 
-					Fuss_Verbindung, Fahrrad_Verbindung, Individualverkehr_Verbindung, Bus_Verbindung, Strassenbahn_Verbindung, 
-					Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung) VALUES (?{})""".format(",?"*27), to_db)
-
-			cur.execute("UPDATE haltestellen SET match_state = 'no_x_ride' WHERE Name_Bereich like '%+R%' AND match_state IS NULL")
-			cur.execute("UPDATE haltestellen SET match_state = 'no_entry' WHERE Name_Bereich like '%ugang%' OR Name_Steig like '%ugang%' AND match_state IS NULL")
-			cur.execute("UPDATE haltestellen SET match_state = 'no_replacement' WHERE (Haltestelle '%rsatz%' OR Haltestelle '%SEV%' OR like Name_Bereich like '%rsatz%' OR Name_Bereich like '%SEV%' OR Name_Steig like '%rsatz%' OR Name_Steig like '%SEV%' ) AND match_state IS NULL")
-			cur.execute("UPDATE haltestellen SET match_state = 'no_extraterritorial' WHERE HalteTyp like '%Netzbereich%' AND match_state IS NULL")
-			cur.execute("SELECT InitSpatialMetaData()")
-			cur.execute("SELECT AddGeometryColumn('haltestellen', 'the_geom', 4326, 'POINT','XY')")
-			cur.execute("UPDATE haltestellen SET the_geom = MakePoint(lon_Steig,lat_Steig, 4326) WHERE lon_Steig is NOT NULL")
-			cur.execute("CREATE INDEX id_steig_idx ON haltestellen(globaleID_Steig)")
-		
-			cur.execute("""CREATE TABLE haltestellen_unified AS
-				select Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, 'Halt' Art , NULL Name_Steig, 
-					CASE 
-						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
-						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
-						ELSE NULL
-					END Mode, NULL parent, match_state FROM haltestellen where lon_Steig IS NULL AND (match_state IS NULL or match_state='matched')
-				UNION
-				select Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAb, gueltigBis, lon_Steig, lat_Steig, 'Steig' Art, Name_Steig, 
-				CASE 
-						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
-						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
-						ELSE NULL
-					END Mode, globaleID parent, match_state FROM haltestellen  where lon_Steig IS NOT NULL 
-					AND (match_state IS NULL or match_state='matched')
-			""")
-			cur.execute("CREATE INDEX id_idx ON haltestellen_unified(globaleID)")
-			cur.execute("SELECT AddGeometryColumn('haltestellen_unified', 'the_geom', 4326, 'POINT','XY')")
-			cur.execute("UPDATE haltestellen_unified SET the_geom = MakePoint(lon,lat, 4326) WHERE lon is NOT NULL")
-
-			self.db.commit()
-			print("Imported Haltestellen")
-
+	
 	def match_stops(self):
 		row = 0
-		cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL AND globaleID like 'de:08231%'")
-		#cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL")
+		#cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL AND globaleID like 'de:08111:6015%'")
+		cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL")
 		stops = cur.fetchall()
 		for stop in stops:
 			row += 1
 			self.match_stop(stop, stop["globaleID"], (float(stop["lat"]),float(stop["lon"])), row)
 				
 	def export_match_candidates(self):
-		self.drop_table_if_exists("candidates")
+		drop_table_if_exists(self.db, "candidates")
 		self.db.execute('''CREATE TABLE candidates
 			 (ifopt_id text, osm_id text, rating real, distance real, name_distance real, platform_matches integer)''')
 		for stop_id in self.official_matches:
@@ -342,14 +378,14 @@ class OsmStopHandler(osmium.SimpleHandler):
 					match['distance'], 
 					match['name_distance'], 
 					match['platform_matches']))
-			print(rows)
+			print("export match candidates ", rows)
 			self.db.executemany('INSERT INTO candidates VALUES (?,?,?,?,?,?)', rows)
 		self.db.commit()
 		self.db.execute('''CREATE INDEX osm_index ON candidates(osm_id, rating DESC)''')
 		self.db.execute('''CREATE INDEX ifopt_index ON candidates(ifopt_id, rating DESC)''')
 		
 
-		self.drop_table_if_exists("matches")
+		drop_table_if_exists(self.db, "matches")
 		self.db.execute("""CREATE TABLE matches AS
 					SELECT * FROM candidates WHERE ifopt_id='Non existant'""")
 
@@ -374,7 +410,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 
 
 	def store_osm_stops(self, rows):
-		self.db.executemany('INSERT INTO osm_stops VALUES (?,?,?,?,?,?,?,?,?,?)', rows)
+		self.db.executemany('INSERT INTO osm_stops VALUES (?,?,?,?,?,?,?,?,?,?,?)', rows)
 		self.db.commit()
 		
 	def store_successors(self, rows):
@@ -382,33 +418,47 @@ class OsmStopHandler(osmium.SimpleHandler):
 		for predecessor in self.succ:
 			for successor in self.succ[predecessor]:
 				rows.append((predecessor, successor))
-		self.db.executemany('INSERT INTO successor VALUES (?,?)', rows)
+		self.db.executemany("INSERT INTO successor VALUES (?,?)", rows)
 		self.db.commit()
-	
+
+	def prefer_stops_over_halts(self):
+		"""We only retain halts where no stop in vicinity and with same name exists"""
+		self.db.execute("""DELETE FROM osm_stops 
+			                WHERE node_id IN (
+								SELECT h.node_id 
+								  FROM osm_stops h, osm_stops s
+								 WHERE h.type IN ('halt', 'station')
+								   AND h.name = s.name 
+								   AND s.type='stop' 
+								   AND s.mode NOT IN ('bus', 'tram')
+								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
+								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
+		self.db.commit()
+		
+
 	def export_osm_stops(self):
 		self.store_osm_stops(self.rows_to_import)
 		self.store_successors(self.pred)
+		self.prefer_stops_over_halts()
+
 		
 	def done(self):
 		self.db.close()
 
-	def drop_table_if_exists(self, table):
-		try:
-			self.db.execute("DROP TABLE {}".format(table))
-		except:
-			pass
+
 
 	def pick_matches(self):
 		cur = self.db.cursor()
 		cur.execute("DELETE FROM matches")
-		cur.execute("SELECT * FROM candidates ORDER BY name_distance DESC, ifopt_id")
+		cur.execute("SELECT * FROM candidates ORDER BY ifopt_id")
 		rows = cur.fetchall()
 		matches = []
 		idx = 0
 		ifopt_id_col = 0
-			
+		matchset_count = 0	
 		while idx < len(rows):
 			first = True
+			matchset_count += 1
 			candidates = {}
 			# Collect all matches for same stop
 			while idx < len(rows) and (first or (rows[idx-1][ifopt_id_col].find(':',9) > -1  and rows[idx][ifopt_id_col].find(':',9) > -1 and rows[idx][ifopt_id_col][:rows[idx][ifopt_id_col].index(':',9)] == rows[idx-1][ifopt_id_col][:rows[idx-1][ifopt_id_col].index(':',9)])):
@@ -417,12 +467,18 @@ class OsmStopHandler(osmium.SimpleHandler):
 				if not rows[idx]["ifopt_id"] in candidates:
 					candidates[rows[idx]["ifopt_id"]] = []
 				candidates[rows[idx]["ifopt_id"]].append(rows[idx])
+				if  rows[idx]["ifopt_id"].startswith('de:08111:6015'):
+					print("collecting ", matchset_count, " ", idx, " ", rows[idx])
 				idx += 1
 			# pick best matches
 			(rating, matches) = best_unique_matches(candidates)
 			self.import_matches(matches)
-		self.db.execute("""DELETE FROM matches WHERE (ifopt_id, osm_id) in (
-			select c2.ifopt_id, c2.osm_id from matches c1, matches c2 where c1.osm_id=c2.osm_id and c2.rating < c1.rating)""")
+		self.db.execute("""DELETE FROM matches 
+			                WHERE (ifopt_id, osm_id) IN (
+			                 SELECT c2.ifopt_id, c2.osm_id 
+			                   FROM matches c1, matches c2 
+			                  WHERE c1.osm_id = c2.osm_id 
+			                    AND c2.rating < c1.rating)""")
 		self.db.commit()
 
 	def import_matches(self, matches):
@@ -431,12 +487,12 @@ class OsmStopHandler(osmium.SimpleHandler):
 		self.db.commit()
 
 	def check_matched(self, ifopt_id, osm_id):
-		cur = self.db.execute("SELECT * from matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])
+		cur = self.db.execute("SELECT * FROM matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])
 		if not len(cur.fetchall())>0:
 			print("ERROR: Expected match is missing: {}->{}".format(ifopt_id, osm_id))
 
 	def check_not_matched(self, ifopt_id, osm_id):
-		cur = self.db.execute("SELECT * from matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])
+		cur = self.db.execute("SELECT * FROM matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])
 		if not len(cur.fetchall())==0:
 			print("ERROR: Got unexpected match for: {}->{}".format(ifopt_id, osm_id))
 
@@ -452,18 +508,25 @@ class OsmStopHandler(osmium.SimpleHandler):
 		
 		# Karl-Abt-Straße even no candidate
 		self.check_matched('de:08231:487:0:1',310744136)
+		# Rohr ist mit Steigen vorhanden, desh
+		self.check_not_matched('de:08111:6001',301614772)
+		# Rohe Pestalozzischule
+		self.check_matched('de:08111:6015:0:3',271653920) # Albblick
+		self.check_not_matched('de:08111:6015:0:3',271654026)
+		self.check_matched('de:08111:6015:0:4',271654026) # Waldburgstra
+		self.check_not_matched('de:08111:6015:0:4',271653920) # Waldburgstra
 		
 def main(osmfile, stops_file):
-	statshandler = OsmStopHandler(import_osm = False, import_haltestellen = False, stops_file = stops_file, osm_file = osmfile)
+	statshandler = OsmStopHandler(import_osm = False, import_haltestellen = True, stops_file = stops_file, osm_file = osmfile)
 	
 	print("Loaded osm file")
-	statshandler.match_stops()
+	#statshandler.match_stops()
 	print("Found candidates")
-	statshandler.export_match_candidates()
+	#statshandler.export_match_candidates()
 	print("Exported candidates")
-	statshandler.pick_matches()
-	statshandler.check_assertions()
-	statshandler.done()
+	#statshandler.pick_matches()
+	#statshandler.check_assertions()
+	#statshandler.done()
 
 	return 0
 
