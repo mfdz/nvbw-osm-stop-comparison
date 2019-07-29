@@ -249,7 +249,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 	def extract_stop_type(self, tags):
 		if tags.get('public_transport') == 'station':
 			return 'station' 
-		elif tags.get('highway') == 'bus_stop' or tags.get('railway') in ['stop','tram_stop'] or (tags.get('public_transport') == 'stop_position' and not tags.get('bus') == 'yes'):
+		elif tags.get('highway') == 'bus_stop' or tags.get('railway') in ['stop','tram_stop'] or (tags.get('public_transport') == 'stop_position' and (not tags.get('bus') == 'yes' or tags.get('ref'))):
 			return 'stop'
 		elif tags.get('public_transport') == 'platform':
 			return 'platform'
@@ -460,6 +460,7 @@ class OsmStopHandler(osmium.SimpleHandler):
 		matchset_count = 0	
 		while idx < len(rows):
 			first = True
+			subset_size = 0
 			matchset_count += 1
 			candidates = {}
 			# Collect all matches for same stop
@@ -469,12 +470,24 @@ class OsmStopHandler(osmium.SimpleHandler):
 				if not rows[idx]["ifopt_id"] in candidates:
 					candidates[rows[idx]["ifopt_id"]] = []
 				candidates[rows[idx]["ifopt_id"]].append(rows[idx])
-				if  rows[idx]["ifopt_id"].startswith('de:08111:6015'):
-					print("collecting ", matchset_count, " ", idx, " ", rows[idx])
+				subset_size += 1
 				idx += 1
-			# pick best matches
-			(rating, matches) = best_unique_matches(candidates)
-			self.import_matches(matches)
+			if subset_size < 50:
+				# pick best matches
+				(rating, matches) = best_unique_matches(candidates)
+				self.import_matches(matches)
+			else:
+				print('Matching bereiche as subset_size too large: ', subset_size, ' for ', candidates)
+				bereiche = {}
+				for ifopt_id in candidates:
+					bereich_id = ifopt_id[:ifopt_id.rindex(':')]
+					if not bereich_id in bereiche:
+						bereiche[bereich_id] = {}
+					bereiche[bereich_id][ifopt_id] = candidates[ifopt_id]
+				for bereich_id in bereiche:
+					(rating, matches) = best_unique_matches(bereiche[bereich_id])
+					self.import_matches(matches)
+
 		self.db.execute("""DELETE FROM matches 
 			                WHERE (ifopt_id, osm_id) IN (
 			                 SELECT c2.ifopt_id, c2.osm_id 
