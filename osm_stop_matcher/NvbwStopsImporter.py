@@ -70,7 +70,7 @@ class NvbwStopsImporter():
 				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, 'Halt' Art , NULL Name_Steig, 
 					CASE 
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
-						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
+						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'Bahn'
 						ELSE NULL
 					END mode, NULL parent, match_state FROM haltestellen 
 				 WHERE lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID IS NOT NULL
@@ -78,7 +78,7 @@ class NvbwStopsImporter():
 				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Bereich, HalteTyp, gueltigAb, gueltigBis, lon_Bereich, lat_Bereich, 'Bereich' Art , NULL Name_Steig, 
 					CASE 
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
-						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
+						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'Bahn'
 						ELSE NULL
 					END mode, globaleID parent, match_state FROM haltestellen
 				 WHERE lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID_Bereich IS NOT NULL AND lon_Bereich is NOT NULL
@@ -86,7 +86,7 @@ class NvbwStopsImporter():
 				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAb, gueltigBis, lon_Steig, lat_Steig, 'Steig' Art, Name_Steig, 
 				CASE 
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
-						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'BAHN'
+						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'Bahn'
 						ELSE NULL
 					END mode, globaleID parent, match_state FROM haltestellen 
 				 WHERE lon_Steig IS NOT NULL AND globaleID_Steig IS NOT NULL
