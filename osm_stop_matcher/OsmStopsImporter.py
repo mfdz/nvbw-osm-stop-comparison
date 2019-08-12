@@ -121,7 +121,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 				self.area_for_stop[current] = area	
 
 	def normalize_IFOPT(self, ifopt):
-		return ifopt.upper().replace("DE:0", "DE:")
+		return ifopt.lower().replace("de:8", "de:08")
 
 	def extract_stop_mode(self, tags):
 		ordered_ref_keys= ["bus","train","tram","light_rail",]
