@@ -1,6 +1,8 @@
 """
 Compare OSM stops to officially provided stops.
 """
+import geojson
+
 import sys
 import spatialite
 import sqlite3
@@ -12,15 +14,14 @@ from osm_stop_matcher.NvbwStopsImporter import NvbwStopsImporter
 from osm_stop_matcher.StopMatcher import StopMatcher
 from osm_stop_matcher.MatchResultValidator import MatchResultValidator
 from osm_stop_matcher.OsmStopsImporter import OsmStopsImporter
-
 		
 def main(osmfile, stops_file):
 	db = spatialite.connect('stops.db')
-	db.execute("PRAGMA case_sensitive_like=ON");
-	db.row_factory = sqlite3.Row   
+	db.execute("PRAGMA case_sensitive_like=ON")
+	db.row_factory = sqlite3.Row
 		
 
-	import_haltestellen = False
+	import_haltestellen = False	
 	import_osm = False
 
 	if import_haltestellen:
@@ -36,7 +37,7 @@ def main(osmfile, stops_file):
 	MatchPicker(db).pick_matches()
 	MatchResultValidator(db).check_assertions()
 	StatisticsUpdater(db).update_match_statistics()
-
+	
 	db.close()
 
 	return 0

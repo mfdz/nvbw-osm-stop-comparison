@@ -1,19 +1,28 @@
+import logging
 import osmium
 from osm_stop_matcher.util import  drop_table_if_exists
 
 
 class OsmStopsImporter(osmium.SimpleHandler):
 	counter = 0
-
+	pred = {}
+	succ = {}
+	stop_areas = {}
+	area_for_stop = {}
 
 	def __init__(self, db, osm_file):
 		super(OsmStopsImporter,self).__init__()
+		self.logger = logging.getLogger('osm_stop_matcher.OsmStopsImporter')
 		self.db = db
 		self.rows_to_import = [] 
 		
 		self.setup_osm_tables()
+		self.logger.info("Created osm tables")
 		self.apply_file(osm_file)
+		self.logger.info("Loaded osm data")
 		self.export_osm_stops()
+		self.logger.info("Exported osm data")
+		
 		
 	def setup_osm_tables(self):
 		drop_table_if_exists(self.db, 'osm_stops')
@@ -45,7 +54,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			}
 
 			self.store_osm_stop(stop)
-
 	
 	def store_osm_stop(self, stop):
 		lat = stop["lat"]
@@ -72,14 +80,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			self.store_osm_stops(self.rows_to_import)
 			self.rows_to_import = []
 
-	pred = {}
-	succ = {}
-
-	def relation(self, r):
-
-		if not r.tags.get("route"): 
-			return
-			
+	def relation_route(self, r):
 		predecessor = None
 		for m in r.members:
 			if "platform" in m.role and m.type == 'n':
@@ -93,14 +94,45 @@ class OsmStopsImporter(osmium.SimpleHandler):
 					self.succ[predecessor].add(current)
 				predecessor = current
 
+	def relation(self, r):
+		if r.tags.get("route"): 
+			self.relation_route(r)
+		elif r.tags.get("public_transport") == "stop_area":
+			self.relation_stop_area(r)
+		
+	def relation_stop_area(self, r):
+
+		(ref_key, ref) = self.extract_ref(r.tags)
+		area = {	
+			"id": r.id,
+			"name": r.tags.get("name"),
+			"network": r.tags.get("network"), 
+			"operator": r.tags.get("operator"),
+			"ref_key": ref_key,
+			"ref": ref,
+			"mode": self.extract_stop_mode(r.tags)
+		}
+			
+		self.stop_areas[r.id] = area
+						
+		for m in r.members:
+			if m.role in ("platform", "stop") and m.type == 'n':
+				current = m.ref
+				self.area_for_stop[current] = area	
+
 	def normalize_IFOPT(self, ifopt):
 		return ifopt.upper().replace("DE:0", "DE:")
 
 	def extract_stop_mode(self, tags):
 		ordered_ref_keys= ["bus","train","tram","light_rail",]
+		first_occurrence = None
 		for key in ordered_ref_keys:
 			if key in tags and tags[key]=='yes':
-				return key
+				if first_occurrence:
+					return None
+				else:
+					first_occurrence = key
+		return first_occurrence
 
 	def extract_stop_type(self, tags):
 		if tags.get('public_transport') == 'station':
@@ -140,8 +172,8 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.executemany("INSERT INTO successor VALUES (?,?)", rows)
 		self.db.commit()
 
-	def prefer_stops_over_halts(self):
-		"""We only retain halts where no stop in vicinity and with same name exists"""
+	def only_keep_more_specific_stops_for_matching(self):
+		# We only retain halts where no stop in vicinity and with same name exists.
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE node_id IN (
 								SELECT h.node_id 
@@ -152,13 +184,56 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND s.mode NOT IN ('bus', 'tram')
 								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
+		# We delete stops for buses and trams if there is a platform (currently only nodes) with the same name in the vicinity.
+		self.db.execute("""DELETE FROM osm_stops 
+			                WHERE node_id IN (
+								SELECT h.node_id 
+								  FROM osm_stops h, osm_stops s
+								 WHERE h.type IN ('stop')
+								   AND h.name = s.name 
+								   AND s.type IN ('platform') 
+								   AND s.mode IN ('bus', 'tram')
+								   AND s.mode = h.mode
+								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
+								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
 		self.db.commit()
-		
+	
+	def add_prev_and_next_stop_names(self):
+		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN next_stops TEXT""")
+		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN prev_stops TEXT""")
+
+		self.db.execute("""UPDATE osm_stops AS g SET next_stops = 
+			(SELECT group_concat(o.name,'/') 
+			   FROM successor s, osm_stops o 
+			  WHERE g.node_id = s.pred_id AND s.succ_id = o.node_id 
+              GROUP BY s.pred_id)""")
+		self.db.execute("""UPDATE osm_stops AS g SET prev_stops = 
+			(SELECT group_concat(o.name,'/') 
+			   FROM successor s, osm_stops o 
+			  WHERE g.node_id = s.succ_id AND s.pred_id = o.node_id 
+			  GROUP BY s.succ_id)""")
+		self.db.commit()
+
+	def update_infos_inherited_from_stop_areas(self):
+		cur = self.db.execute("""SELECT node_id FROM osm_stops WHERE name IS NULL""")
+		stops = cur.fetchall()
+		for stop in stops:
+			stop_area = self.area_for_stop.get(stop["node_id"])
+			if stop_area:
+				self.db.execute("""UPDATE osm_stops SET name =? WHERE node_id=?""", (stop_area.get("name"), stop["node_id"]))
+		self.db.commit()
+
+	def add_match_state(self):
+		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN match_state TEXT""")
+		self.db.commit()
 
 	def export_osm_stops(self):
 		self.store_osm_stops(self.rows_to_import)
 		self.store_successors(self.pred)
-		self.prefer_stops_over_halts()
+		self.add_prev_and_next_stop_names()
+		self.update_infos_inherited_from_stop_areas()
+		self.only_keep_more_specific_stops_for_matching()
+		self.add_match_state()
 
 
 

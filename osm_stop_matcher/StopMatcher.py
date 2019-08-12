@@ -1,3 +1,4 @@
+import logging
 import math
 import ngram
 
@@ -20,10 +21,12 @@ class StopMatcher():
 	def __init__(self, db):
 		self.db = db
 		self.osm_stops = index.Index()
-		
+		self.logger = logging.getLogger('osm_stop_matcher.StopMatcher')	
 
 	def match_stops(self):
+		self.logger.info("Loading osm data to index")
 		self.load_osm_index()
+		self.logger.info("Loaded osm data to index")
 		row = 0
 		#cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL AND globaleID like 'de:08111:6015%'")
 		cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL")
@@ -31,8 +34,10 @@ class StopMatcher():
 		for stop in stops:
 			row += 1
 			self.match_stop(stop, stop["globaleID"], (float(stop["lat"]),float(stop["lon"])), row)
-
+		
+		self.logger.info("Matched stops")	
 		self.export_match_candidates()
+		self.logger.info("Exported candidates")
 
 	def load_osm_index(self):
 		cur = self.db.execute("SELECT * FROM osm_stops")
@@ -52,6 +57,8 @@ class StopMatcher():
 				"type": stop["type"],
 				"ref": stop["ref"],
 				"ref_key": stop["ref_key"],
+				"next_stops": stop["next_stops"],
+				"prev_stops": stop["prev_stops"],
 				"assumed_platform": stop["assumed_platform"]
 			}
 			self.osm_stops.insert(id = id, coordinates=(lat, lon, lat, lon), obj= stop)
@@ -61,8 +68,14 @@ class StopMatcher():
 		if richtung:
 			for exp in ['Ri ', 'Ri.', 'eRtg ' ,'Rtg ', 'Richt', 'Fahrtrichtung', 'Ri-', 'Ri:', 'Richtung', 'Richtg.', 'FR ', '>']:
 				richtung = richtung.replace(exp, '')
-		
-		return
+			if (len(stop["Name_Steig"]) > len(richtung)):
+				similarity_next = ngram.NGram.compare(richtung, osm_stop["next_stops"],N=1)
+				similarity_prev = ngram.NGram.compare(richtung, osm_stop["prev_stops"],N=1)
+				if similarity_next > 0.7 and similarity_prev < 0.5:
+					return 1
+				elif similarity_prev > 0.7 and similarity_next < 0.5:
+					return -1
+		return 0
 
 	def rank_candidate(self, stop, candidate, distance):
 		osm_name = candidate["name"]
@@ -81,7 +94,7 @@ class StopMatcher():
 		ifopt_platform = ''.join(filter(str.isdigit, platform_id[platform_id.rfind(":"):])) if platform_id and platform_id.count(':') > 2 else None
 		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
 		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
-		successor_ranking = self.rank_successor_matching(stop, candidate)
+		successor_rating = self.rank_successor_matching(stop, candidate)
 		
 		if candidate["ref"] == stop["globaleID"]:
 			# TODO: We currently ignore, that OSM IFOPTS are currently duplicated for some stops...
@@ -95,8 +108,10 @@ class StopMatcher():
 				# Only a small malus, since OSM has some refs wrongly tagged as bus route number...
 				rating = rating*0.99
 
-		print("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches))
-		return (rating, name_distance, matched_name, osm_name, platform_matches)
+		rating = rating ** (1 - successor_rating * 0.2)
+
+		print("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating))
+		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating)
 
 	def rank_candidates(self, stop, stop_id, coords, candidates):
 		matches = []
@@ -114,14 +129,15 @@ class StopMatcher():
 			if candidate["mode"] == 'bus' and "Bahn" == stop["mode"]:
 				continue
 			
-			(rating, name_distance, matched_name, osm_name, platform_matches) = self.rank_candidate(stop, candidate, distance)
-			if last_name_distance > name_distance:
+			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating) = self.rank_candidate(stop, candidate, distance)
+			#if last_name_distance > name_distance:
+			if last_name_distance > name_distance and name_distance < 0.3:
 				print ("Ignore {} ({})  {} (n{}) with distance {} and name similarity {}. Platform matches? {} as name distance low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
 				continue
 
 			print ("{} ({}) might match {} (n{}) with distance {} and name similarity {}. Platform matches? {}".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
 			
-			matches.append({"globalID": stop_id, "match": candidate, "name_distance": name_distance, "distance": distance, "platform_matches": platform_matches, "rating": rating})
+			matches.append({"globalID": stop_id, "match": candidate, "name_distance": name_distance, "distance": distance, "platform_matches": platform_matches, "successor_rating": successor_rating, "rating": rating})
 			last_name_distance = name_distance
 		return matches
 
@@ -152,7 +168,7 @@ class StopMatcher():
 	def export_match_candidates(self):
 		drop_table_if_exists(self.db, "candidates")
 		self.db.execute('''CREATE TABLE candidates
-			 (ifopt_id text, osm_id text, rating real, distance real, name_distance real, platform_matches integer)''')
+			 (ifopt_id text, osm_id text, rating real, distance real, name_distance real, platform_matches integer, successor_rating INTEGER)''')
 		for stop_id in self.official_matches:
 			matches = self.official_matches[stop_id]
 			rows = []
@@ -163,9 +179,11 @@ class StopMatcher():
 					match["rating"], 
 					match['distance'], 
 					match['name_distance'], 
-					match['platform_matches']))
+					match['platform_matches'],
+					match['successor_rating'],
+					))
 			print("export match candidates ", rows)
-			self.db.executemany('INSERT INTO candidates VALUES (?,?,?,?,?,?)', rows)
+			self.db.executemany('INSERT INTO candidates VALUES (?,?,?,?,?,?,?)', rows)
 		self.db.commit()
 		self.db.execute('''CREATE INDEX osm_index ON candidates(osm_id, rating DESC)''')
 		self.db.execute('''CREATE INDEX ifopt_index ON candidates(ifopt_id, rating DESC)''')

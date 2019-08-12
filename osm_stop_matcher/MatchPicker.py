@@ -1,3 +1,4 @@
+import logging
 import math
 
 def best_unique_matches(candidates, agency_stops = [], matches = [], matched_index = 0, already_matched_osm = []):
@@ -38,7 +39,7 @@ class MatchPicker():
 
 	def __init__(self, db):
 		self.db = db
-
+		self.logger = logging.getLogger('osm_stop_matcher.MatchPicker')
 
 
 	def pick_matches(self):
@@ -69,7 +70,7 @@ class MatchPicker():
 				(rating, matches) = best_unique_matches(candidates)
 				self.import_matches(matches)
 			else:
-				print('Matching bereiche as subset_size too large: ', subset_size, ' for ', candidates)
+				self.logger.debug('Matching bereiche as subset_size too large: %s for %s', subset_size, candidates)
 				bereiche = {}
 				for ifopt_id in candidates:
 					bereich_id = ifopt_id[:ifopt_id.rindex(':')]
@@ -80,16 +81,19 @@ class MatchPicker():
 					(rating, matches) = best_unique_matches(bereiche[bereich_id])
 					self.import_matches(matches)
 
+		self.logger.info('Imported matches')
 		self.db.execute("""DELETE FROM matches 
 			                WHERE (ifopt_id, osm_id) IN (
-			                 SELECT c2.ifopt_id, c2.osm_id 
+			                 SELECT c2.ifopt_id, c2.osm_id
 			                   FROM matches c1, matches c2 
 			                  WHERE c1.osm_id = c2.osm_id 
 			                    AND c2.rating < c1.rating)""")
+		self.logger.info('Deleted worse matches if one osm_stop is associated with multiple nvbw stops')
+		
 		self.db.commit()
 
 
 	def import_matches(self, matches):
 		cur = self.db.cursor()
-		cur.executemany("INSERT INTO matches VALUES(?,?,?,?,?,?,?)", matches)
+		cur.executemany("INSERT INTO matches VALUES(?,?,?,?,?,?,?,?)", matches)
 		self.db.commit()
