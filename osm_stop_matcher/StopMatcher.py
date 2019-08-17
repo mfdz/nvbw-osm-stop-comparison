@@ -41,11 +41,13 @@ class StopMatcher():
 
 	def load_osm_index(self):
 		cur = self.db.execute("SELECT * FROM osm_stops")
+		cnt = 0
 		rows = cur.fetchall()
 		for stop in rows:
+			cnt += 1
 			lat = stop["lat"]
 			lon = stop["lon"]
-			id = stop["node_id"]
+			id = stop["osm_id"]
 			stop = {
 				"id": id,
 				"name": stop["name"],
@@ -61,7 +63,7 @@ class StopMatcher():
 				"prev_stops": stop["prev_stops"],
 				"assumed_platform": stop["assumed_platform"]
 			}
-			self.osm_stops.insert(id = id, coordinates=(lat, lon, lat, lon), obj= stop)
+			self.osm_stops.insert(id = cnt, coordinates=(lat, lon, lat, lon), obj= stop)
 
 	def rank_successor_matching(self, stop, osm_stop):
 		richtung = stop["Name_Steig"]
@@ -82,10 +84,10 @@ class StopMatcher():
 		name_distance_short_name = ngram.NGram.compare(stop["Haltestelle"],osm_name,N=1)
 		name_distance_long_name = ngram.NGram.compare(stop["Haltestelle_lang"],osm_name,N=1)
 		if stop["Haltestelle"] == '' or stop["Haltestelle"] == None :
-			print("Stop {} has no name. Use fix name_distance".format(stop["globaleID"]))
+			self.logger.info("Stop {} has no name. Use fix name_distance".format(stop["globaleID"]))
 			name_distance_short_name = 0.3
 		elif osm_name == '' or osm_name == None:
-			print("OSM stop n{} has no name. Use fix name_distance".format(candidate["id"]))
+			self.logger.info("OSM stop {} has no name. Use fix name_distance".format(candidate["id"]))
 			name_distance_short_name = 0.3
 		
 		(short_name_matched, matched_name) = (False, stop["Haltestelle_lang"]) if name_distance_short_name < name_distance_long_name else (True, stop["Haltestelle"])
@@ -110,7 +112,7 @@ class StopMatcher():
 
 		rating = rating ** (1 - successor_rating * 0.2)
 
-		print("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating))
+		self.logger.debug("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating))
 		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating)
 
 	def rank_candidates(self, stop, stop_id, coords, candidates):
@@ -132,10 +134,12 @@ class StopMatcher():
 			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating) = self.rank_candidate(stop, candidate, distance)
 			#if last_name_distance > name_distance:
 			if last_name_distance > name_distance and name_distance < 0.3:
-				print ("Ignore {} ({})  {} (n{}) with distance {} and name similarity {}. Platform matches? {} as name distance low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
+				self.logger.info("Ignore {} ({})  {} ({}) with distance {} and name similarity {}. Platform matches? {} as name distance low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
 				continue
-
-			print ("{} ({}) might match {} (n{}) with distance {} and name similarity {}. Platform matches? {}".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
+			elif rating < 0.001:
+				self.logger.info("Ignore {} ({})  {} ({}) as rating {} is low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
+				continue
+			self.logger.info("{} ({}) might match {} ({}) with distance {} and name similarity {}. Platform matches? {}".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
 			
 			matches.append({"globalID": stop_id, "match": candidate, "name_distance": name_distance, "distance": distance, "platform_matches": platform_matches, "successor_rating": successor_rating, "rating": rating})
 			last_name_distance = name_distance
@@ -182,7 +186,7 @@ class StopMatcher():
 					match['platform_matches'],
 					match['successor_rating'],
 					))
-			print("export match candidates ", rows)
+			self.logger.debug("export match candidates ", rows)
 			self.db.executemany('INSERT INTO candidates VALUES (?,?,?,?,?,?,?)', rows)
 		self.db.commit()
 		self.db.execute('''CREATE INDEX osm_index ON candidates(osm_id, rating DESC)''')
@@ -205,9 +209,9 @@ class StopMatcher():
 		self.db.execute("""UPDATE matches SET the_geom = (
 			SELECT LineFromText('LINESTRING('||o.lon||' '||o.lat||', '||n.lon||' '||n.lat||')', 4326) 
 			  FROM osm_stops o, haltestellen_unified n  
-			 WHERE o.node_id = osm_id AND matches.ifopt_id = n.globaleID AND n.lat IS NOT NULL)""") 
+			 WHERE o.osm_id = matches.osm_id AND matches.ifopt_id = n.globaleID AND n.lat IS NOT NULL)""") 
 		self.db.execute("""UPDATE candidates SET the_geom = (
 			SELECT LineFromText('LINESTRING('||o.lon||' '||o.lat||', '||n.lon||' '||n.lat||')', 4326) 
 			  FROM osm_stops o, haltestellen_unified n  
-			 WHERE o.node_id = osm_id AND candidates.ifopt_id = n.globaleID AND n.lat IS NOT NULL)""")
+			 WHERE o.osm_id = candidates.osm_id AND candidates.ifopt_id = n.globaleID AND n.lat IS NOT NULL)""")
 		self.db.commit()

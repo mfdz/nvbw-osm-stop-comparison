@@ -13,11 +13,13 @@ class StatisticsUpdater():
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_AMBIGOUSLY' 
 							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_NAMES_DIFFER' 
-			                WHERE globaleID IN (SELECT ifopt_id FROM matches WHERE name_distance < 0.3 AND rating > 0.002)""")
+			                WHERE globaleID IN (SELECT ifopt_id FROM matches WHERE name_distance < 0.4)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_OSM_NO_NAME' 
-							WHERE globaleID IN (SELECT ifopt_id FROM matches m, osm_stops o WHERE o.name IS NULL AND m.osm_id = o.node_id)""")
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m, osm_stops o WHERE o.name IS NULL AND m.osm_id = o.osm_id)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_DISTANT' 
-							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE distance > 200 AND rating > 0.002)""")
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE distance > 200)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_IMPROBABLE' 
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE rating < 0.002)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH' 
 							WHERE globaleID NOT IN (SELECT ifopt_id FROM matches);""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_BUT_OTHER_PLATFORM_MATCHED' 
@@ -26,15 +28,17 @@ class StatisticsUpdater():
 							WHERE globaleID IS NULL""")
 
 		self.db.execute("""UPDATE osm_stops SET match_state = 'MATCHED' 
-			                WHERE node_id IN (SELECT osm_id FROM matches)""")
+			                WHERE osm_id IN (SELECT osm_id FROM matches)""")
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_NAMES_DIFFER' 
-			                WHERE node_id IN (SELECT osm_id FROM matches WHERE name_distance < 0.3 AND rating > 0.002)""")
+			                WHERE osm_id IN (SELECT osm_id FROM matches WHERE name_distance < 0.4)""")
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_OSM_NO_NAME' 
-			                WHERE name IS NULL AND node_id  IN (SELECT osm_id FROM matches m )""")
+			                WHERE name IS NULL AND osm_id  IN (SELECT osm_id FROM matches m )""")
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_DISTANT' 
-			                WHERE node_id IN (SELECT osm_id FROM matches m WHERE distance > 200 AND rating > 0.002)""")
+			                WHERE osm_id IN (SELECT osm_id FROM matches m WHERE distance > 200)""")
+		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_IMPROBABLE' 
+			                WHERE osm_id IN (SELECT osm_id FROM matches WHERE rating < 0.002)""")
 		self.db.execute("""UPDATE osm_stops SET match_state = 'NO_MATCH' 
-			                WHERE node_id NOT IN (SELECT osm_id FROM matches)""")
-		self.logger.info('Updates statistics')
+			                WHERE osm_id NOT IN (SELECT osm_id FROM matches)""")
+		self.logger.info('Updated statistics')
 		
 		self.db.commit()
