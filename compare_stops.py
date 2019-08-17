@@ -21,8 +21,8 @@ def main(osmfile, stops_file):
 	db.row_factory = sqlite3.Row
 		
 
-	import_haltestellen = False	
-	import_osm = False
+	import_haltestellen = True	
+	import_osm = True
 
 	if import_haltestellen:
 		NvbwStopsImporter(db).import_stops(stops_file)
