@@ -1,6 +1,11 @@
 import logging
 import math
 
+
+def get_rating(row):
+	print ('rating', row['rating'])
+	return row['rating']
+
 def best_unique_matches(candidates, agency_stops = [], matches = [], matched_index = 0, already_matched_osm = []):
 	if (len(agency_stops) == 0 ):
 		agency_stops_set = set()
@@ -10,8 +15,17 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 			agency_stops_set.add(candidate)
 		agency_stops = list(agency_stops_set)
 		if cand_count > 50:
-			print("Ignore ",agency_stops, " as too complex for now")
-			return (0, [])
+			for candidate in candidates:
+
+				if candidates[candidate]: 
+					print("A", candidates[candidate])
+					candidates[candidate].sort(reverse = True, key = get_rating)
+					print("sorted", candidates[candidate])
+					
+					candidates[candidate] = [candidates[candidate][0]]
+					print("Chopped", candidates[candidate])
+					
+
 	#print(matched_index, agency_stops)
 	if matched_index < len(agency_stops):
 		stop_candidates = candidates.get(agency_stops[matched_index])
