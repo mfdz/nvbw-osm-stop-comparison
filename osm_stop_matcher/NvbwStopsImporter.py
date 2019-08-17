@@ -85,7 +85,7 @@ class NvbwStopsImporter():
 				UNION
 				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAb, gueltigBis, lon_Steig, lat_Steig, 'Steig' Art, Name_Steig, 
 				CASE 
-						WHEN Name_Bereich LIKE '%Bus%' THEN 'Bus' 
+						WHEN Name_Bereich LIKE '%Bus%' OR Name_Steig LIKE '%Bus%' THEN 'Bus' 
 						WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Bereich LIKE '%Zug%' OR Name_Steig LIKE '%Gl%' THEN 'Bahn'
 						ELSE NULL
 					END mode, globaleID parent, match_state FROM haltestellen 
