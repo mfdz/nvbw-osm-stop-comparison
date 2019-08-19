@@ -42,7 +42,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 	def node(self, n):
 		stop_type = self.extract_stop_type(n.tags)
 		if stop_type:
-			print(n)
 			self.extract_and_store_stop(stop_type, "n" + str(n.id), n.tags, Point(n.location.lon, n.location.lat))
 
 	def way(self, w):

@@ -16,14 +16,10 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 		agency_stops = list(agency_stops_set)
 		if cand_count > 50:
 			for candidate in candidates:
-
+				# retain only best candidate to reduce complexity
 				if candidates[candidate]: 
-					print("A", candidates[candidate])
 					candidates[candidate].sort(reverse = True, key = get_rating)
-					print("sorted", candidates[candidate])
-					
 					candidates[candidate] = [candidates[candidate][0]]
-					print("Chopped", candidates[candidate])
 					
 
 	#print(matched_index, agency_stops)
@@ -94,6 +90,9 @@ class MatchPicker():
 				for bereich_id in bereiche:
 					(rating, matches) = best_unique_matches(bereiche[bereich_id])
 					self.import_matches(matches)
+
+			if matchset_count % 2500 == 0:
+				self.logger.info('Matched %s stops...', matchset_count)
 
 		self.logger.info('Imported matches')
 		self.db.execute("""DELETE FROM matches 
