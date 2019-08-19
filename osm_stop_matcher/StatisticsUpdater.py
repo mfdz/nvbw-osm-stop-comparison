@@ -14,6 +14,9 @@ class StatisticsUpdater():
 							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_NAMES_DIFFER' 
 			                WHERE globaleID IN (SELECT ifopt_id FROM matches WHERE name_distance < 0.4)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_NO_NAME' 
+							WHERE match_state='MATCHED_THOUGH_NAMES_DIFFER' 
+							  AND Haltestelle IS NULL AND Haltestelle_lang IS NULL""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_OSM_NO_NAME' 
 							WHERE globaleID IN (SELECT ifopt_id FROM matches m, osm_stops o WHERE o.name IS NULL AND m.osm_id = o.osm_id)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_DISTANT' 
