@@ -79,6 +79,12 @@ class StopMatcher():
 					return -1
 		return 0
 
+	def is_same_mode(self, stop, candidate):
+		return 1 if (candidate["mode"] == 'bus' and stop["mode"] == 'Bus' or 
+			candidate["mode"] in ['train', 'light_rail'] and stop["mode"] == 'Bahn' or
+			candidate["mode"] == 'tram' and stop["mode"] == 'tram' 
+			) else 0
+
 	def rank_candidate(self, stop, candidate, distance):
 		osm_name = candidate["name"]
 		name_distance_short_name = ngram.NGram.compare(stop["Haltestelle"],osm_name,N=1)
@@ -96,6 +102,7 @@ class StopMatcher():
 		ifopt_platform = ''.join(filter(str.isdigit, platform_id[platform_id.rfind(":"):])) if platform_id and platform_id.count(':') > 2 else None
 		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
 		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
+		mode_rating = self.is_same_mode(stop, candidate)
 		successor_rating = self.rank_successor_matching(stop, candidate)
 		
 		if candidate["ref"] == stop["globaleID"]:
@@ -110,7 +117,7 @@ class StopMatcher():
 				# Only a small malus, since OSM has some refs wrongly tagged as bus route number...
 				rating = rating*0.99
 
-		rating = rating ** (1 - successor_rating * 0.2)
+		rating = rating ** (1 - successor_rating * 0.2 - mode_rating * 0.1)
 
 		self.logger.debug("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating))
 		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating)
@@ -125,7 +132,7 @@ class StopMatcher():
 				return matches
 		   
 			# Ignore bahn candidates when looking for bus_stop
-			if candidate["mode"] in ['train','light_rail','tram'] and "Bus" == stop["mode"]:
+			if candidate["mode"] in ['trainish', 'train','light_rail','tram'] and "Bus" == stop["mode"]:
 				continue
 			# Ignore bus candidates when looking for railway stops
 			if candidate["mode"] == 'bus' and "Bahn" == stop["mode"]:

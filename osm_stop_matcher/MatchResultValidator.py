@@ -12,6 +12,11 @@ class MatchResultValidator():
 		if not len(cur.fetchall())==0:
 			print("ERROR: Got unexpected match for: {}->{}".format(ifopt_id, osm_id))
 
+	def check_not_to_match(self, osm_id):
+		cur = self.db.execute("SELECT * FROM osm_stops WHERE osm_id=? ", [osm_id])
+		if not len(cur.fetchall())==0:
+			print("ERROR: Got unexpected osm_stop to match for: {}".format(osm_id))
+
 	def check_assertions(self):
 		self.check_matched('de:08311:30822:0:5', 'n4391668851')
 		# Ensingen Feuerwehrmagazin.  kein Candidat. Mutmaßlich schlechterer Wert für Name Distance?	
@@ -31,3 +36,6 @@ class MatchResultValidator():
 		self.check_not_matched('de:08111:6015:0:3','n271654026')
 		self.check_matched('de:08111:6015:0:4','n271654026') # Waldburgstra
 		self.check_not_matched('de:08111:6015:0:4','n271653920') # Waldburgstra
+		self.check_not_to_match('n872587831')
+		self.check_matched('de:08111:55:3:4', 'n272067913') # Berliner Platz (Hohe Straße)
+		self.check_not_to_match('n6551589907') # Rotebühlplatz (bus_stop is part of platform)
