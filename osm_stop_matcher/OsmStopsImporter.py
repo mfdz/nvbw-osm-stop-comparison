@@ -28,7 +28,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.export_osm_stops()
 		self.logger.info("Exported osm data")
 		
-		
 	def setup_osm_tables(self):
 		drop_table_if_exists(self.db, 'osm_stops')
 		self.db.execute('''CREATE TABLE osm_stops
@@ -54,27 +53,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 				self.extract_and_store_stop(stop_type, "w" + str(w.id), w.tags, location)
 			except AttributeError as err:
 				self.logger.error("Error handling way %s: %s %s", w.id, err, w)
-
-	def extract_and_store_stop(self, stop_type, osm_id, tags, location):	
-		self.counter += 1
-		(ref_key, ref) = self.extract_ref(tags)
-		assumed_platform = self.extract_steig(tags)
-		stop = {
-			"id": osm_id,
-			"lat": location.y,
-			"lon": location.x,
-			"tags": {tag.k: tag.v for tag in tags},
-			"mode": self.extract_stop_mode(tags),
-			"type": stop_type ,
-			"ref": ref,
-			"ref_key": ref_key,
-			"assumed_platform": assumed_platform
-		}
-
-		self.store_osm_stop(stop)
-		if self.counter % 10000 == 0:
-			self.logger.info("Imported %s stops", self.counter)
-
 	
 	def store_osm_stop(self, stop):
 		lat = stop["lat"]
@@ -97,9 +75,15 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			stop["assumed_platform"],
 			))
 				
-		if self.counter  % 100 == 0:
+		if self.counter % 100 == 0:
 			self.store_osm_stops(self.rows_to_import)
 			self.rows_to_import = []
+
+	def relation(self, r):
+		if r.tags.get("route"): 
+			self.relation_route(r)
+		elif r.tags.get("public_transport") == "stop_area":
+			self.relation_stop_area(r)
 
 	def relation_route(self, r):
 		predecessor = None
@@ -114,15 +98,8 @@ class OsmStopsImporter(osmium.SimpleHandler):
 					self.pred[current].add(predecessor)
 					self.succ[predecessor].add(current)
 				predecessor = current
-
-	def relation(self, r):
-		if r.tags.get("route"): 
-			self.relation_route(r)
-		elif r.tags.get("public_transport") == "stop_area":
-			self.relation_stop_area(r)
 		
 	def relation_stop_area(self, r):
-
 		(ref_key, ref) = self.extract_ref(r.tags)
 		area = {	
 			"id": r.id,
@@ -140,6 +117,39 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			if m.role in ("platform", "stop"):
 				current = m.type + str(m.ref)
 				self.area_for_stop[current] = area	
+
+	def extract_stop_type(self, tags):
+		if tags.get('public_transport') == 'station':
+			return 'station' 
+		elif tags.get('railway') in ['stop','tram_stop'] or tags.get('public_transport') == 'stop_position':
+			return 'stop'
+		elif tags.get('highway') == 'bus_stop' or tags.get('public_transport') == 'platform':
+			return 'platform'
+		elif tags.get('railway') == 'halt':
+			return 'halt'
+		else:
+			return None
+
+	def extract_and_store_stop(self, stop_type, osm_id, tags, location):	
+		self.counter += 1
+		(ref_key, ref) = self.extract_ref(tags)
+		assumed_platform = self.extract_steig(tags)
+		stop = {
+			"id": osm_id,
+			"lat": location.y,
+			"lon": location.x,
+			"tags": {tag.k: tag.v for tag in tags},
+			"mode": self.extract_stop_mode(tags),
+			"type": stop_type ,
+			"ref": ref,
+			"ref_key": ref_key,
+			"assumed_platform": assumed_platform
+		}
+
+		self.store_osm_stop(stop)
+		if self.counter % 10000 == 0:
+			self.logger.info("Imported %s stops", self.counter)
+
 
 	def normalize_IFOPT(self, ifopt):
 		return ifopt.lower().replace("de:8", "de:08")
