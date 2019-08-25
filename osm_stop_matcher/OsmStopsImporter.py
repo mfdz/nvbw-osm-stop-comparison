@@ -1,5 +1,6 @@
 import logging
 import osmium
+import re
 import shapely.wkb as wkblib
 from shapely.geometry import Point
 import sys
@@ -133,7 +134,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 	def extract_and_store_stop(self, stop_type, osm_id, tags, location):	
 		self.counter += 1
 		(ref_key, ref) = self.extract_ref(tags)
-		assumed_platform = self.extract_steig(tags)
+		assumed_platform = self.extract_platform(tags)
 		stop = {
 			"id": osm_id,
 			"lat": location.y,
@@ -178,11 +179,15 @@ class OsmStopsImporter(osmium.SimpleHandler):
 				return (key, self.normalize_IFOPT(tags[key]))
 		return (None, None)
 
-	def extract_steig(self, tags):
-		potential_steig_keys= ["ref","local_ref"]
-		for key in potential_steig_keys:
+	def extract_platform(self, tags):
+		potential_platform_keys= ["ref","local_ref"]
+		for key in potential_platform_keys:
 			if key in tags and len(tags[key])<3:
 				return tags[key]
+		if tags.get("name"):
+			numerics = re.findall("\d+", tags["name"])
+			if numerics:
+				return numerics[-1]
 		return None
 
 	def store_osm_stops(self, rows):
