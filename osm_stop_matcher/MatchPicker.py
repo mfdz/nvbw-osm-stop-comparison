@@ -3,7 +3,6 @@ import math
 
 
 def get_rating(row):
-	print ('rating', row['rating'])
 	return row['rating']
 
 def best_unique_matches(candidates, agency_stops = [], matches = [], matched_index = 0, already_matched_osm = []):
@@ -21,8 +20,6 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 					candidates[candidate].sort(reverse = True, key = get_rating)
 					candidates[candidate] = [candidates[candidate][0]]
 					
-
-	#print(matched_index, agency_stops)
 	if matched_index < len(agency_stops):
 		stop_candidates = candidates.get(agency_stops[matched_index])
 		best_rating = 0
