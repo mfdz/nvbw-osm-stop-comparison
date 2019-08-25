@@ -101,7 +101,7 @@ class StopMatcher():
 		(short_name_matched, matched_name) = (False, stop["Haltestelle_lang"]) if name_distance_short_name < name_distance_long_name else (True, stop["Haltestelle"])
 		name_distance = max(name_distance_short_name, name_distance_long_name)
 		platform_id = stop["globaleID"]
-		ifopt_platform = ''.join(filter(str.isdigit, platform_id[platform_id.rfind(":"):])) if platform_id and platform_id.count(':') > 2 else None
+		ifopt_platform = platform_id[platform_id.rfind(":") + 1 :] if platform_id and platform_id.count(':') > 3 else None
 		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
 		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
 		mode_rating = self.is_same_mode(stop, candidate)
