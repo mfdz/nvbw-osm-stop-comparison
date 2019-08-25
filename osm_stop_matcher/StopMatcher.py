@@ -2,7 +2,6 @@ import logging
 import math
 import ngram
 
-
 from rtree import index
 from haversine import haversine, Unit
 
@@ -81,11 +80,17 @@ class StopMatcher():
 					return -1
 		return 0
 
-	def is_same_mode(self, stop, candidate):
-		return 1 if (candidate["mode"] == 'bus' and stop["mode"] == 'Bus' or 
-			candidate["mode"] in ['train', 'light_rail'] and stop["mode"] == 'Bahn' or
-			candidate["mode"] == 'tram' and stop["mode"] == 'tram' 
-			) else 0
+	def rank_mode(self, stop, candidate):
+		if (candidate["mode"] == 'bus' and stop["mode"] == 'bus' or 
+			candidate["mode"] == 'light_rail' and stop["mode"] == 'light_rail' or
+			candidate["mode"] == 'train' and stop["mode"] == 'train' or
+			candidate["mode"] == 'trainish' and stop["mode"] in ['train', 'light_rail'] or
+			candidate["mode"] == 'tram' and stop["mode"] == 'tram'):
+			return 1
+		elif not candidate["mode"] or not stop["mode"]:
+			return 0.7
+		else:
+			return 0
 
 	def rank_candidate(self, stop, candidate, distance):
 		osm_name = candidate["name"]
@@ -104,7 +109,7 @@ class StopMatcher():
 		ifopt_platform = platform_id[platform_id.rfind(":") + 1 :] if platform_id and platform_id.count(':') > 3 else None
 		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
 		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
-		mode_rating = self.is_same_mode(stop, candidate)
+		mode_rating = self.rank_mode(stop, candidate)
 		successor_rating = self.rank_successor_matching(stop, candidate)
 		
 		if candidate["ref"] == stop["globaleID"]:
@@ -113,16 +118,14 @@ class StopMatcher():
 		else:
 			rating = name_distance / ( 1 + distance )
 			# We boost a candidate if steig matches
-			if platform_matches:
-				rating = math.sqrt(rating)
-			elif platform_mismatches:
+			if platform_mismatches:
 				# Only a small malus, since OSM has some refs wrongly tagged as bus route number...
 				rating = rating*0.99
 
-		rating = rating ** (1 - successor_rating * 0.2 - mode_rating * 0.1)
+			rating = rating ** (1 - successor_rating * 0.2 - mode_rating * 0.1 - mode_rating * platform_matches * 0.1)
 
-		self.logger.debug("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating))
-		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating)
+		self.logger.debug("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating))
+		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)
 
 	def rank_candidates(self, stop, stop_id, coords, candidates):
 		matches = []
@@ -134,13 +137,13 @@ class StopMatcher():
 				return matches
 		   
 			# Ignore bahn candidates when looking for bus_stop
-			if candidate["mode"] in ['trainish', 'train','light_rail','tram'] and "Bus" == stop["mode"]:
+			if candidate["mode"] in ['trainish', 'train','light_rail','tram'] and "bus" == stop["mode"]:
 				continue
 			# Ignore bus candidates when looking for railway stops
-			if candidate["mode"] == 'bus' and "Bahn" == stop["mode"]:
+			if candidate["mode"] == 'bus' and stop["mode"] in ["tram", "light_rail", "train"]:
 				continue
 			
-			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating) = self.rank_candidate(stop, candidate, distance)
+			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating) = self.rank_candidate(stop, candidate, distance)
 			#if last_name_distance > name_distance:
 			if last_name_distance > name_distance and name_distance < 0.3:
 				self.logger.info("Ignore {} ({})  {} ({}) with distance {} and name similarity {}. Platform matches? {} as name distance low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
@@ -150,7 +153,7 @@ class StopMatcher():
 				continue
 			self.logger.info("{} ({}) might match {} ({}) with distance {} and name similarity {}. Platform matches? {}".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
 			
-			matches.append({"globalID": stop_id, "match": candidate, "name_distance": name_distance, "distance": distance, "platform_matches": platform_matches, "successor_rating": successor_rating, "rating": rating})
+			matches.append({"globalID": stop_id, "match": candidate, "name_distance": name_distance, "distance": distance, "platform_matches": platform_matches, "successor_rating": successor_rating, "rating": rating, "mode_rating": mode_rating})
 			last_name_distance = name_distance
 		return matches
 
@@ -163,16 +166,25 @@ class StopMatcher():
 				 self.osm_matches[osm_id] = []
 			self.osm_matches[osm_id].append(match)
 
+	def is_bus_station(self, stop):
+		name = stop["Haltestelle"]  if stop["Haltestelle"] else stop["Haltestelle_lang"] 
+		return name and ('ahnhof' in name
+			or 'ZOB' in name
+			or 'Schulzentrum' in name
+			or 'Flughafen' in name
+			or ' Bf' in name )
+
 	def match_stop(self, stop, stop_id, coords, row):
 		# TODO Check coords
-		candidates = list(self.osm_stops.nearest(coords, 5, objects='raw'))
+		no_of_candidates = 15 if self.is_bus_station(stop) else 5
+
+		candidates = list(self.osm_stops.nearest(coords, no_of_candidates, objects='raw'))
 		matches = self.rank_candidates(stop, stop_id, coords, candidates)
 		if not matches:
 			self.add_error("no_osm_match", "No match for row {} ({})".format(row, stop_id))
 		else:
 			self.store_matches(stop, stop_id, matches)
 
-	
 	def add_error(self, id, message):
 		if not id in self.errors:
 			self.errors[id] = []
@@ -181,7 +193,7 @@ class StopMatcher():
 	def export_match_candidates(self):
 		drop_table_if_exists(self.db, "candidates")
 		self.db.execute('''CREATE TABLE candidates
-			 (ifopt_id text, osm_id text, rating real, distance real, name_distance real, platform_matches integer, successor_rating INTEGER)''')
+			 (ifopt_id text, osm_id text, rating real, distance real, name_distance real, platform_matches integer, successor_rating INTEGER, mode_rating real)''')
 		for stop_id in self.official_matches:
 			matches = self.official_matches[stop_id]
 			rows = []
@@ -194,9 +206,10 @@ class StopMatcher():
 					match['name_distance'], 
 					match['platform_matches'],
 					match['successor_rating'],
+					match['mode_rating'],
 					))
 			self.logger.debug("export match candidates ", rows)
-			self.db.executemany('INSERT INTO candidates VALUES (?,?,?,?,?,?,?)', rows)
+			self.db.executemany('INSERT INTO candidates VALUES (?,?,?,?,?,?,?,?)', rows)
 		self.db.commit()
 		self.db.execute('''CREATE INDEX osm_index ON candidates(osm_id, rating DESC)''')
 		self.db.execute('''CREATE INDEX ifopt_index ON candidates(ifopt_id, rating DESC)''')
