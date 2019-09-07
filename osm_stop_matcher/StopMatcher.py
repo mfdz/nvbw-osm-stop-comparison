@@ -7,11 +7,6 @@ from haversine import haversine, Unit
 
 from osm_stop_matcher.util import  drop_table_if_exists
 
-class StopsError():
-	def __init__(self, id, message):
-		self.id = id
-		self.message = message
-
 class StopMatcher():
 	official_matches = {}
 	osm_matches = {}
@@ -180,15 +175,8 @@ class StopMatcher():
 
 		candidates = list(self.osm_stops.nearest(coords, no_of_candidates, objects='raw'))
 		matches = self.rank_candidates(stop, stop_id, coords, candidates)
-		if not matches:
-			self.add_error("no_osm_match", "No match for row {} ({})".format(row, stop_id))
-		else:
+		if matches:	
 			self.store_matches(stop, stop_id, matches)
-
-	def add_error(self, id, message):
-		if not id in self.errors:
-			self.errors[id] = []
-		self.errors[id].append(StopsError(id, message))
 	
 	def export_match_candidates(self):
 		drop_table_if_exists(self.db, "candidates")
