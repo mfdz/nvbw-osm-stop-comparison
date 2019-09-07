@@ -5,7 +5,7 @@ import ngram
 from rtree import index
 from haversine import haversine, Unit
 
-from osm_stop_matcher.util import  drop_table_if_exists
+from osm_stop_matcher.util import  drop_table_if_exists, backup_table_if_exists
 
 class StopMatcher():
 	official_matches = {}
@@ -202,6 +202,7 @@ class StopMatcher():
 		self.db.execute('''CREATE INDEX osm_index ON candidates(osm_id, rating DESC)''')
 		self.db.execute('''CREATE INDEX ifopt_index ON candidates(ifopt_id, rating DESC)''')
 		
+		backup_table_if_exists(self.db, "matches", "matches_backup")
 
 		drop_table_if_exists(self.db, "matches")
 		self.db.execute("""CREATE TABLE matches AS
