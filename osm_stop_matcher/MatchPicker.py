@@ -1,6 +1,7 @@
 import logging
 import math
 
+from . import config
 
 def get_rating(row):
 	return row['rating']
@@ -13,7 +14,7 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 			cand_count += len(candidates[candidate])
 			agency_stops_set.add(candidate)
 		agency_stops = list(agency_stops_set)
-		if cand_count > 50:
+		if cand_count > config.MAX_CANDIDATE_COUNT_PER_STOP_BEFORE_ONLY_BEST_PER_QUAY_ARE_CONSIDERED:
 			for candidate in candidates:
 				# retain only best candidate to reduce complexity
 				if candidates[candidate]: 
@@ -52,7 +53,7 @@ class MatchPicker():
 	def pick_matches(self):
 		cur = self.db.cursor()
 		cur.execute("DELETE FROM matches")
-		cur.execute("SELECT * FROM candidates ORDER BY ifopt_id")
+		cur.execute("SELECT * FROM candidates WHERE rating >= ? ORDER BY ifopt_id", [config.RATING_BELOW_CANDIDATES_ARE_IGNORED])
 		rows = cur.fetchall()
 		matches = []
 		idx = 0
