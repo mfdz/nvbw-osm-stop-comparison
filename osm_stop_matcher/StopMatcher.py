@@ -1,6 +1,7 @@
 import logging
 import math
 import ngram
+import re
 
 from rtree import index
 from haversine import haversine, Unit
@@ -65,10 +66,9 @@ class StopMatcher():
 	def rank_successor_matching(self, stop, osm_stop):
 		richtung = stop["Name_Steig"]
 		if richtung:
-			for exp in ['Ri ', 'Ri.', 'eRtg ' ,'Rtg ', 'Richt ', 'Fahrtrichtung ', 'Ri-', 'Ri:', 'Richtung ', 'Richtg. ', 'FR ', '>']:
-				pos = richtung.find(exp)
-				if pos >= 0:
-					richtung = richtung[pos+len(exp):]
+			match = re.match('(.*)(eRtg|Ri |>|Ri\.|Rtg|Richt |Fahrtrichtung|Ri-|Ri:|Richtung|Richtg\.|FR )(.*)', richtung)
+			if match:
+				richtung = match.group(3).strip()
 			if (len(stop["Name_Steig"]) > len(richtung)):
 				similarity_next = ngram.NGram.compare(richtung, osm_stop["next_stops"],N=1)
 				similarity_prev = ngram.NGram.compare(richtung, osm_stop["prev_stops"],N=1)
