@@ -173,8 +173,7 @@ class StopMatcher():
 			or ' Bf' in name )
 
 	def match_stop(self, stop, stop_id, coords, row):
-		# TODO Check coords
-		no_of_candidates = 15 if self.is_bus_station(stop) else 5
+		no_of_candidates = 15 if self.is_bus_station(stop) else 10
 
 		candidates = list(self.osm_stops.nearest(coords, no_of_candidates, objects='raw'))
 		matches = self.rank_candidates(stop, stop_id, coords, candidates)
