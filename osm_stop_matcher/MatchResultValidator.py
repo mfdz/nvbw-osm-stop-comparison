@@ -2,20 +2,28 @@ class MatchResultValidator():
 	def __init__(self, db):
 		self.db = db
 
-	def check_matched(self, ifopt_id, osm_id):
+	def report_error(self, msg, ifopt_id, osm_id, note):
+		if ifopt_id:
+			cur = self.db.execute("SELECT lat, lon FROM haltestellen_unified WHERE globaleID=?", [ifopt_id])
+			stop = cur.fetchone()
+			print(msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
+		else:
+			print(msg.format(osm_id), "({})".format(note))
+
+	def check_matched(self, ifopt_id, osm_id, note = ''):
 		cur = self.db.execute("SELECT * FROM matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])
 		if not len(cur.fetchall())>0:
-			print("ERROR: Expected match is missing: {}->{}".format(ifopt_id, osm_id))
+			self.report_error("ERROR: Expected match is missing: {}->{}", ifopt_id, osm_id, note)
 
-	def check_not_matched(self, ifopt_id, osm_id):
+	def check_not_matched(self, ifopt_id, osm_id, note = ''):
 		cur = self.db.execute("SELECT * FROM matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])
 		if not len(cur.fetchall())==0:
-			print("ERROR: Got unexpected match for: {}->{}".format(ifopt_id, osm_id))
+			self.report_error("ERROR: Got unexpected match for: {}->{}",ifopt_id, osm_id, note)
 
-	def check_not_to_match(self, osm_id):
+	def check_not_to_match(self, osm_id, note = ''):
 		cur = self.db.execute("SELECT * FROM osm_stops WHERE osm_id=? ", [osm_id])
 		if not len(cur.fetchall())==0:
-			print("ERROR: Got unexpected osm_stop to match for: {}".format(osm_id))
+			self.report_error("ERROR: Got unexpected osm_stop to match for:", None, osm_id, note)
 
 	def check_assertions(self):
 		self.check_matched('de:08311:30822:0:5', 'n4391668851')
@@ -29,7 +37,7 @@ class MatchResultValidator():
 		self.check_not_matched('de:08231:488:0:1', 'n310744136')
 		
 		# Karl-Abt-Straße even no candidate
-		self.check_matched('de:08231:487:0:1','n310744136')
+		self.check_matched('de:08231:487:0:1','n310744136', 'Karl-Abt-Straße has wrong ref, it contains route_ref')
 		# Rohr ist mit Steigen vorhanden, desh
 		self.check_not_matched('de:08111:6001','n301614772')
 		# Rohe Pestalozzischule
@@ -46,3 +54,5 @@ class MatchResultValidator():
 		self.check_matched('de:08111:6157:4:2', 'n717575086') # Feuerbach Stadtbahn
 
 		self.check_matched('de:08226:4252:3:2','n3188450069') # Wiesloch Walldorf (mode nvbw nicht erkannt)
+
+		self.check_not_matched('de:08216:34829:1:2','n19089001', 'Multiple modes like light_rail and train=yes caused a matching issue here')
