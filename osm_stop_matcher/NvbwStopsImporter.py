@@ -1,5 +1,10 @@
 import csv
+import datetime
 from .util import xstr, drop_table_if_exists
+
+def reformat_date(date):
+	if date:
+		return str(datetime.datetime.strptime(date, '%d.%m.%Y').date())
 
 class NvbwStopsImporter():
 	def __init__(self, connection):
@@ -10,8 +15,10 @@ class NvbwStopsImporter():
 		drop_table_if_exists(self.db, "haltestellen_unified")
 		cur = self.db.cursor()
 		cur.execute("""CREATE TABLE haltestellen (Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, 
-			HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon REAL, lat REAL, Name_Bereich, globaleID_Bereich, 
-			lon_Bereich REAL, lat_Bereich REAL, Name_Steig, globaleID_Steig, lon_Steig REAL, lat_Steig REAL, 
+			HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lat REAL, lon REAL, Name_Bereich, globaleID_Bereich,
+			gueltigAbBereich, gueltigBisBereich,  
+			lat_Bereich REAL, lon_Bereich REAL, Name_Steig, globaleID_Steig, 
+			gueltigAbSteig, gueltigBisSteig, lat_Steig REAL, lon_Steig REAL,  
 			Fuss_Verbindung, Fahrrad_Verbindung, Individualverkehr_Verbindung, Bus_Verbindung, Strassenbahn_Verbindung, 
 			Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung, match_state)""") 
 
@@ -26,18 +33,22 @@ class NvbwStopsImporter():
 				xstr(row['HalteBeschreibung']),
 				xstr(row['globaleID']),
 				xstr(row['HalteTyp']),
-				xstr(row['gueltigAb']),
-				xstr(row['gueltigBis']),
-				float(row['lon']) if row['lon'] else None, 
+				xstr(reformat_date(row['gueltigAb'])),
+				xstr(reformat_date(row['gueltigBis'])),
 				float(row['lat']) if row['lat'] else None,
+				float(row['lon']) if row['lon'] else None, 
 				xstr(row['Name_Bereich']),
 				xstr(row['globaleID_Bereich']), 
-				float(row['lon_Bereich']) if row['lon_Bereich'] else None, 
+				xstr(reformat_date(row.get('gueltigAbBereich'))),
+				xstr(reformat_date(row.get('gueltigBisBereich'))),
 				float(row['lat_Bereich']) if row['lat_Bereich'] else None, 
+				float(row['lon_Bereich']) if row['lon_Bereich'] else None, 
 				xstr(row['Name_Steig']),
 				xstr(row['globaleID_Steig']),
-				float(row['lon_Steig']) if row['lon_Steig'] else None, 
+				xstr(reformat_date(row.get('gueltigAbSteig'))),
+				xstr(reformat_date(row.get('gueltigBisSteig'))),
 				float(row['lat_Steig']) if row['lat_Steig'] else None, 
+				float(row['lon_Steig']) if row['lon_Steig'] else None, 
 				xstr(row['Fuss_Verbindung']),
 				xstr(row['Fahrrad_Verbindung']),
 				xstr(row['Individualverkehr_Verbindung']),
@@ -49,10 +60,11 @@ class NvbwStopsImporter():
 				) for row in dr]
 
 			cur.executemany("""INSERT INTO haltestellen (Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, 
-					HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, Name_Bereich, globaleID_Bereich, 
-					lon_Bereich, lat_Bereich, Name_Steig, globaleID_Steig, lon_Steig, lat_Steig, 
+					HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lat, lon, Name_Bereich, globaleID_Bereich, 
+					gueltigAbBereich, gueltigBisBereich, lat_Bereich, lon_Bereich, Name_Steig, globaleID_Steig, 
+					gueltigAbSteig, gueltigBisSteig, lat_Steig, lon_Steig, 
 					Fuss_Verbindung, Fahrrad_Verbindung, Individualverkehr_Verbindung, Bus_Verbindung, Strassenbahn_Verbindung, 
-					Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung) VALUES (?{})""".format(",?"*27), to_db)
+					Schmalspurbahn_Verbindung, Eisenbahn_Verbindung, Faehren_Verbindung) VALUES (?{})""".format(",?"*31), to_db)
 
 			cur.execute("UPDATE haltestellen SET match_state = 'no_x_ride' WHERE Name_Bereich like '%+R%' AND match_state IS NULL")
 			cur.execute("UPDATE haltestellen SET match_state = 'no_entry' WHERE Name_Bereich like '%ugang%' OR Name_Steig like '%ugang%' AND match_state IS NULL")
@@ -67,7 +79,7 @@ class NvbwStopsImporter():
 			cur.execute("CREATE INDEX id_steig_idx ON haltestellen(globaleID_Steig)")
 		
 			cur.execute("""CREATE TABLE haltestellen_unified AS
-				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lon, lat, 'Halt' Art , NULL Name_Steig, 
+				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID, HalteTyp, gueltigAb, gueltigBis, lat, lon, 'Halt' Art , NULL Name_Steig, 
 					CASE 
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'bus'
 						WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Stadtbahn%' THEN 'light_rail'
@@ -75,8 +87,9 @@ class NvbwStopsImporter():
 						ELSE NULL
 					END mode, NULL parent, match_state FROM haltestellen 
 				 WHERE lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID IS NOT NULL
+				   AND (gueltigBis IS NULL OR gueltigBis >= Date('now'))
 				UNION
-				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Bereich, HalteTyp, gueltigAb, gueltigBis, lon_Bereich, lat_Bereich, 'Bereich' Art , NULL Name_Steig, 
+				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Bereich, HalteTyp, gueltigAbBereich, gueltigBisBereich, lat_Bereich, lon_Bereich, 'Bereich' Art , NULL Name_Steig, 
 					CASE 
 						WHEN Name_Bereich LIKE '%Bus%' THEN 'bus' 
 						WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Stadtbahn%'THEN 'light_rail'
@@ -84,8 +97,10 @@ class NvbwStopsImporter():
 						ELSE NULL
 					END mode, globaleID parent, match_state FROM haltestellen
 				 WHERE lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID_Bereich IS NOT NULL AND lon_Bereich is NOT NULL
+				   AND (gueltigBis IS NULL OR gueltigBIS >= Date('now'))
+				   AND (gueltigBisBereich IS NULL OR gueltigBisBereich >= Date('now'))
 				UNION
-				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAb, gueltigBis, lon_Steig, lat_Steig, 'Steig' Art, Name_Steig, 
+				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAbSteig, gueltigBisSteig, lat_Steig, lon_Steig, 'Steig' Art, Name_Steig, 
 				CASE 
 						WHEN Name_Steig LIKE '%Straßenbahn%' THEN 'tram' 
 						WHEN Name_Bereich LIKE '%Bus%' OR Name_Steig LIKE '%Bus%' OR Name_Steig LIKE '%Nachtbus%' THEN 'bus' 
@@ -95,6 +110,9 @@ class NvbwStopsImporter():
 					END mode, globaleID parent, match_state FROM haltestellen 
 				 WHERE lon_Steig IS NOT NULL AND globaleID_Steig IS NOT NULL
 				   AND (match_state IS NULL or match_state='matched')
+				   AND (gueltigBis IS NULL OR gueltigBIS >= Date('now'))
+				   AND (gueltigBisBereich IS NULL OR gueltigBisBereich >= Date('now'))
+				   AND (gueltigBisSteig IS NULL OR gueltigBisSteig >= Date('now'))
 			""")
 			# Lösche alle nicht zum Ein/Aussteigen genutzten Halte
 			cur.execute("DELETE FROM haltestellen_unified WHERE HalteTyp in ('Übergangstarif', 'Zeitposition','EinAusbringer')")
