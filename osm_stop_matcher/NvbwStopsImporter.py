@@ -103,7 +103,7 @@ class NvbwStopsImporter():
 				SElECT Landkreis, Gemeinde, Ortsteil, Haltestelle, Haltestelle_lang, HalteBeschreibung, globaleID_Steig, HalteTyp, gueltigAbSteig, gueltigBisSteig, lat_Steig, lon_Steig, 'Steig' Art, Name_Steig, 
 				CASE 
 						WHEN Name_Steig LIKE '%Straßenbahn%' THEN 'tram' 
-						WHEN Name_Bereich LIKE '%Bus%' OR Name_Steig LIKE '%Bus%' OR Name_Steig LIKE '%Nachtbus%' THEN 'bus' 
+						WHEN Name_Bereich LIKE '%Bus%' OR Name_Steig LIKE '%Bus%' OR Name_Steig LIKE '%Bstg%' OR Name_Steig LIKE '%Nachtbus%' THEN 'bus' 
 						WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Stadtbahn%' THEN 'light_rail'
 						WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Steig LIKE '%Gl.%' OR Name_Steig LIKE '%Gleis%' THEN 'train'
 						ELSE NULL
