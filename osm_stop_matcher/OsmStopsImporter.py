@@ -161,7 +161,11 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		for key in ordered_ref_keys:
 			if key in tags and tags[key]=='yes':
 				if first_occurrence:
-					return None
+					# if ambigous, rather return nothing than wrong
+					if first_occurrence == 'bus':
+						return None
+					else:
+						return 'trainish'
 				else:
 					first_occurrence = key
 		if first_occurrence:
