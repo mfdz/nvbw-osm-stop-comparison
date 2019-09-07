@@ -99,7 +99,12 @@ class MatchPicker():
 			                  WHERE c1.osm_id = c2.osm_id 
 			                    AND c2.rating < c1.rating)""")
 		self.logger.info('Deleted worse matches if one osm_stop is associated with multiple nvbw stops')
-		
+		self.db.execute("""DELETE FROM matches AS md WHERE (md.ifopt_id, md.osm_id) IN (
+							SELECT mr.ifopt_id, mr.osm_id
+							  FROM matches mr, matches mk 
+							 WHERE mr.ifopt_id=mk.ifopt_id
+							  AND mr.name_distance < mk.name_distance)""")
+		self.logger.info('Deleted matches with worse name_distance if multiple osm_stop match same nvbw stop')
 		self.db.commit()
 
 
