@@ -9,6 +9,7 @@ from haversine import haversine, Unit
 from osm_stop_matcher.util import  drop_table_if_exists, backup_table_if_exists
 
 class StopMatcher():
+	UNKNOWN_MODE_RATING = 0.3
 	official_matches = {}
 	osm_matches = {}
 	errors = {}
@@ -94,12 +95,13 @@ class StopMatcher():
 		osm_name = candidate["name"]
 		name_distance_short_name = ngram.NGram.compare(stop["Haltestelle"],osm_name,N=1)
 		name_distance_long_name = ngram.NGram.compare(stop["Haltestelle_lang"],osm_name,N=1)
-		if stop["Haltestelle"] == '' or stop["Haltestelle"] == None :
-			self.logger.info("Stop {} has no name. Use fix name_distance".format(stop["globaleID"]))
+		if (stop["Haltestelle"] == '' or stop["Haltestelle"] == None) and (stop["Haltestelle_lang"] == '' or stop["Haltestelle_lang"] == None):
+			self.logger.info("Stop %s has no name. Use fix name_distance", stop["globaleID"])
 			name_distance_short_name = 0.3
 		elif osm_name == '' or osm_name == None:
-			self.logger.info("OSM stop {} has no name. Use fix name_distance".format(candidate["id"]))
+			self.logger.info("OSM stop %s has no name. Use fix name_distance", candidate["id"])
 			name_distance_short_name = 0.3
+			name_distance_long_name = 0.3
 		
 		(short_name_matched, matched_name) = (False, stop["Haltestelle_lang"]) if name_distance_short_name < name_distance_long_name else (True, stop["Haltestelle"])
 		name_distance = max(name_distance_short_name, name_distance_long_name)
@@ -117,18 +119,19 @@ class StopMatcher():
 			rating = name_distance / ( 1 + distance )
 			# We boost a candidate if steig matches
 			if platform_mismatches:
-				# Only a small malus, since OSM has some refs wrongly tagged as bus route number...
-				rating = rating*0.99
+				# Note: since OSM has some refs wrongly tagged as bus route number...
+				rating = rating*0.5
 
-			rating = rating ** (1 - successor_rating * 0.2 - mode_rating * 0.1 - mode_rating * platform_matches * 0.1)
+			rating = rating ** (1 - successor_rating * 0.2 - mode_rating * 0.1 - mode_rating * platform_matches * 0.5)
 
-		self.logger.debug("rank_candidate", (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating))
+		self.logger.debug("rating: %s name_distance: %s matched_name: %s osm_name: %s platform_matches: %s successor_rating: %s, mode_rating: %s", rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)
 		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)
 
 	def rank_candidates(self, stop, stop_id, coords, candidates):
 		matches = []
 		last_name_distance = 0
 		for candidate in candidates:
+			self.logger.debug('rank %s', candidate)
 			# estimate distance
 			distance = haversine(coords, (candidate["lat"],candidate["lon"]), unit=Unit.METERS)
 			if distance > 400:
