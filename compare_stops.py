@@ -1,5 +1,5 @@
 """
-Compare OSM stops to officially provided stops.
+Compare OSM stops to NVBW provided stops.
 """
 import geojson
 
@@ -15,11 +15,19 @@ from osm_stop_matcher.StopMatcher import StopMatcher
 from osm_stop_matcher.MatchResultValidator import MatchResultValidator
 from osm_stop_matcher.OsmStopsImporter import OsmStopsImporter
 		
+import logging
+
+# TODO
+# instead of using coded booleans for imports, derive that from params
+# introduce some more deterministics choosing ambigous candidates as winning match
+# label matches for which an equally rated candidate exists as ambigous
+# label current ambigous match as matched_parent_stop_only
+# pre/succ currently only works for (bus) platforms...
 def main(osmfile, stops_file):
+	logging.basicConfig(filename='matching.log', filemode='w', level=logging.INFO)
 	db = spatialite.connect('stops.db')
 	db.execute("PRAGMA case_sensitive_like=ON")
 	db.row_factory = sqlite3.Row
-		
 
 	import_haltestellen = True	
 	import_osm = True
@@ -41,7 +49,6 @@ def main(osmfile, stops_file):
 	db.close()
 
 	return 0
-
 
 if __name__ == '__main__':
 	if len(sys.argv) != 3:
