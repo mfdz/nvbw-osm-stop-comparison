@@ -18,20 +18,23 @@ class StopMatcher():
 		self.logger = logging.getLogger('osm_stop_matcher.StopMatcher')	
 
 	def match_stops(self):
+		self._match_stops('%', export = True)
+
+	def _match_stops(self, id_pattern = '%', export = False):
 		self.logger.info("Loading osm data to index")
 		self.load_osm_index()
 		self.logger.info("Loaded osm data to index")
 		row = 0
-		#cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL AND globaleID like 'de:08111:6015%'")
-		cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL")
+		cur = self.db.execute("SELECT * FROM haltestellen_unified where lon IS NOT NULL AND globaleID like ?", [id_pattern])
 		stops = cur.fetchall()
 		for stop in stops:
 			row += 1
 			self.match_stop(stop, stop["globaleID"], (float(stop["lat"]),float(stop["lon"])), row)
 		
-		self.logger.info("Matched stops")	
-		self.export_match_candidates()
-		self.logger.info("Exported candidates")
+		self.logger.info("Matched stops")
+		if export:	
+			self.export_match_candidates()
+			self.logger.info("Exported candidates")
 
 	def load_osm_index(self):
 		cur = self.db.execute("SELECT * FROM osm_stops")
