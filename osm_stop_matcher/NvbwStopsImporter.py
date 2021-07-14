@@ -115,7 +115,7 @@ class NvbwStopsImporter():
 				   AND (gueltigBisSteig IS NULL OR gueltigBisSteig >= Date('now'))
 			""")
 			# Lösche alle nicht zum Ein/Aussteigen genutzten Halte
-			cur.execute("DELETE FROM haltestellen_unified WHERE HalteTyp in ('Übergangstarif', 'Zeitposition','EinAusbringer')")
+			cur.execute("DELETE FROM haltestellen_unified WHERE HalteTyp in ('Zeitposition','EinAusbringer')")
 			cur.execute("DELETE FROM haltestellen_unified WHERE globaleID IN (SELECT parent FROM haltestellen_unified)")
 			cur.execute("CREATE INDEX id_idx ON haltestellen_unified(globaleID)")
 			cur.execute("SELECT AddGeometryColumn('haltestellen_unified', 'the_geom', 4326, 'POINT','XY')")
