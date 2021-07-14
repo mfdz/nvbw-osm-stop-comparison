@@ -34,7 +34,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		drop_table_if_exists(self.db, 'osm_stops')
 		self.db.execute('''CREATE TABLE osm_stops
 			(osm_id TEXT PRIMARY KEY, name TEXT, network TEXT, operator TEXT, railway TEXT, highway TEXT, public_transport TEXT, lat REAL, lon REAL, 
-			 mode TEXT, type TEXT, ref TEXT, ref_key TEXT, assumed_platform TEXT)''')
+			 mode TEXT, type TEXT, ref TEXT, ref_key TEXT, assumed_platform TEXT, empty_name INTEGER)''')
 		
 		drop_table_if_exists(self.db, 'osm_stop_areas')
 		self.db.execute('''CREATE TABLE osm_stop_areas
@@ -94,6 +94,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			stop["ref"],
 			stop["ref_key"],
 			stop["assumed_platform"],
+			0
 			))
 				
 		if self.counter % 100 == 0:
@@ -248,7 +249,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		return None
 
 	def store_osm_stops(self, rows):
-		self.db.executemany('INSERT INTO osm_stops VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+		self.db.executemany('INSERT INTO osm_stops VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
 		self.db.commit()
 		
 	def store_platform_nodes(self):
@@ -345,17 +346,46 @@ class OsmStopsImporter(osmium.SimpleHandler):
 	def add_prev_and_next_stop_names(self):
 		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN next_stops TEXT""")
 		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN prev_stops TEXT""")
-
 		self.db.execute("""UPDATE osm_stops AS g SET next_stops = 
-			(SELECT group_concat(o.name,'/') 
-			   FROM successor s, osm_stops o 
-			  WHERE g.osm_id = s.pred_id AND s.succ_id = o.osm_id 
-              GROUP BY s.pred_id)""")
+			(SELECT group_concat(name,'/') FROM (
+				SELECT s.pred_id, o.name
+				FROM successor s, osm_stops o
+				WHERE g.osm_id = s.pred_id AND s.succ_id = o.osm_id
+				GROUP BY s.pred_id, o.name)
+			GROUP BY pred_id)""")
 		self.db.execute("""UPDATE osm_stops AS g SET prev_stops = 
-			(SELECT group_concat(o.name,'/') 
-			   FROM successor s, osm_stops o 
-			  WHERE g.osm_id = s.succ_id AND s.pred_id = o.osm_id 
-			  GROUP BY s.succ_id)""")
+			(SELECT group_concat(name,'/') FROM (
+			  SELECT s.succ_id, o.name
+			  FROM successor s, osm_stops o
+			  WHERE g.osm_id = s.succ_id AND s.pred_id = o.osm_id
+			  GROUP BY s.succ_id, o.name)
+			GROUP BY succ_id)""")
+		self.db.commit()
+
+	def add_column_empty_name(self):
+		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN empty_name INTEGER""")
+		self.db.commit()
+
+	def deduce_missing_names_from_close_by_stops(self):
+		cur = self.db.execute("""
+			SELECT osm_id, name, dist FROM (
+				SELECT nn.osm_id, wn.name, MIN(abs(wn.lat-nn.lat)+abs(wn.lon-nn.lon)) dist
+				FROM osm_stops nn, osm_stops wn
+			WHERE nn.name IS NULL
+			  AND nn.lat BETWEEN wn.lat-0.001 AND wn.lat+0.001
+			  AND nn.lon BETWEEN wn.lon-0.001 AND wn.lon+0.001
+			  AND wn.name IS NOT NULL
+			  AND (nn.mode = wn.mode 
+			    OR (nn.mode = 'trainish' AND wn.mode IN ('rail', 'tram','light_rail'))
+			    OR (wn.mode = 'trainish' AND nn.mode IN ('rail', 'tram','light_rail')))
+			GROUP BY nn.osm_id, wn.name)
+			ORDER BY osm_id, dist""")
+		name_candiates = cur.fetchall()
+		current = None
+		for stop in name_candiates:
+			if current != stop["osm_id"]:
+				current = stop["osm_id"]
+				self.db.execute("""UPDATE osm_stops SET name =?, empty_name=1 WHERE osm_id=?""", (stop["name"], stop["osm_id"]))
 		self.db.commit()
 
 	def update_infos_inherited_from_stop_areas_and_platforms(self):
@@ -384,5 +414,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.store_successors(self.pred)
 		self.add_prev_and_next_stop_names()
 		self.update_infos_inherited_from_stop_areas_and_platforms()
+		self.deduce_missing_names_from_close_by_stops()
 		self.only_keep_more_specific_stops_for_matching()
 		self.add_match_state()
