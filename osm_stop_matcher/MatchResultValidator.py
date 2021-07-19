@@ -1,14 +1,17 @@
+import logging
+
 class MatchResultValidator():
 	def __init__(self, db):
 		self.db = db
+		self.logger = logging.getLogger('osm_stop_matcher.MatchResultValidator')
 
 	def report_error(self, msg, ifopt_id, osm_id, note):
 		if ifopt_id:
 			cur = self.db.execute("SELECT lat, lon FROM haltestellen_unified WHERE globaleID=?", [ifopt_id])
 			stop = cur.fetchone()
-			print(msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
+			self.logger.warn("%s %s", msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
 		else:
-			print(msg.format(osm_id), "({})".format(note))
+			self.logger.warn("%s %s", msg.format(osm_id), "({})".format(note))
 
 	def check_matched(self, ifopt_id, osm_id, note = ''):
 		cur = self.db.execute("SELECT * FROM matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])

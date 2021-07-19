@@ -409,11 +409,21 @@ class OsmStopsImporter(osmium.SimpleHandler):
 
 	def export_osm_stops(self):
 		self.store_osm_stops(self.rows_to_import)
+		self.logger.info("Stored osm stops")
 		self.store_platform_nodes()
+		self.logger.info("Stored patform nodes")
 		self.store_stop_areas()
+		self.logger.info("Stored stop areas")	
 		self.store_successors(self.pred)
+		self.logger.info("Stored successors")
 		self.add_prev_and_next_stop_names()
+		self.logger.info("Added prev and next stop names")
 		self.update_infos_inherited_from_stop_areas_and_platforms()
+		self.logger.info("Updated infos inherited from stop areas and platforms")
 		self.deduce_missing_names_from_close_by_stops()
+		self.logger.info("Deduced missing names from close by stops")
 		self.only_keep_more_specific_stops_for_matching()
+		self.logger.info("Removed less specific stops")
 		self.add_match_state()
+		self.logger.info("Added match state")
+		
