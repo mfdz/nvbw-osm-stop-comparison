@@ -67,7 +67,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 				location = line.centroid if line.is_ring else line.interpolate(0.5, normalized = True)
 				self.extract_and_store_stop(stop_type, "w" + str(w.id), w.tags, location)
 				self.cache_platform_nodes(w)
-			except AttributeError as err:
+			except Exception as err:
 				self.logger.error("Error handling way %s: %s %s", w.id, err, w)
 	
 	def cache_platform_nodes(self, w):
@@ -97,7 +97,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			0
 			))
 				
-		if self.counter % 100 == 0:
+		if self.counter % 1000 == 0:
 			self.store_osm_stops(self.rows_to_import)
 			self.rows_to_import = []
 
@@ -254,6 +254,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		
 	def store_platform_nodes(self):
 		self.db.executemany("INSERT INTO platform_nodes VALUES (?,?)", self.platform_nodes)
+		self.db.execute("CREATE INDEX pl_nd_idx ON platform_nodes(node_id)")
 		self.db.commit()
 
 	def store_successors(self, rows):
@@ -344,22 +345,32 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.commit()
 	
 	def add_prev_and_next_stop_names(self):
+		drop_table_if_exists(self.db, 'SUCCESSOR_NAME')
+		drop_table_if_exists(self.db, 'PREDECESSOR_NAME')
+		
 		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN next_stops TEXT""")
 		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN prev_stops TEXT""")
-		self.db.execute("""UPDATE osm_stops AS g SET next_stops = 
-			(SELECT group_concat(name,'/') FROM (
-				SELECT s.pred_id, o.name
-				FROM successor s, osm_stops o
-				WHERE g.osm_id = s.pred_id AND s.succ_id = o.osm_id
-				GROUP BY s.pred_id, o.name)
-			GROUP BY pred_id)""")
-		self.db.execute("""UPDATE osm_stops AS g SET prev_stops = 
-			(SELECT group_concat(name,'/') FROM (
+		self.db.execute("""CREATE TABLE PREDECESSOR_NAME AS 
+			SELECT succ_id osm_id, group_concat(name,'/') pred_name FROM (
 			  SELECT s.succ_id, o.name
 			  FROM successor s, osm_stops o
-			  WHERE g.osm_id = s.succ_id AND s.pred_id = o.osm_id
+			  WHERE s.pred_id = o.osm_id AND o.name IS NOT NULL
 			  GROUP BY s.succ_id, o.name)
-			GROUP BY succ_id)""")
+			GROUP BY succ_id""")
+		self.db.execute("""CREATE TABLE SUCCESSOR_NAME AS
+			SELECT pred_id osm_id, group_concat(name,'/') succ_name FROM (
+			  SELECT s.pred_id, o.name
+			  FROM successor s, osm_stops o
+			  WHERE s.succ_id = o.osm_id AND o.name IS NOT NULL
+			  GROUP BY s.pred_id, o.name)
+			GROUP BY pred_id""")
+		self.db.execute("CREATE INDEX PRED_NAME_INDEX on PREDECESSOR_NAME(osm_id)")
+		self.db.execute("CREATE INDEX SUCC_NAME_INDEX on SUCCESSOR_NAME(osm_id)")
+		self.db.execute("UPDATE osm_stops AS g SET next_stops = (SELECT succ_name FROM SUCCESSOR_NAME s WHERE s.osm_id=g.osm_id)")
+		self.db.execute("UPDATE osm_stops AS g SET prev_stops = (SELECT pred_name FROM PREDECESSOR_NAME s WHERE s.osm_id=g.osm_id)")
+		drop_table_if_exists(self.db, 'SUCCESSOR_NAME')
+		drop_table_if_exists(self.db, 'PREDECESSOR_NAME')
+		
 		self.db.commit()
 
 	def add_column_empty_name(self):
@@ -367,6 +378,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.commit()
 
 	def deduce_missing_names_from_close_by_stops(self):
+		self.db.execute("""CREATE INDEX stops_lat_lon ON osm_stops(lat,lon)""")
 		cur = self.db.execute("""
 			SELECT osm_id, name, dist FROM (
 				SELECT nn.osm_id, wn.name, MIN(abs(wn.lat-nn.lat)+abs(wn.lon-nn.lon)) dist

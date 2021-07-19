@@ -12,6 +12,28 @@ class GtfsStopsImporter():
     def __init__(self, connection):
         self.db = connection
         
+    def import_routes(self, routes_file):
+        cur = self.db.cursor()
+        drop_table_if_exists(self.db, "gtfs_routes")
+        cur.execute("CREATE TABLE gtfs_routes (route_id,route_type);")
+
+        reader = csv.DictReader(io.TextIOWrapper(routes_file, 'utf-8'))
+        to_db = [(i['route_id'], i['route_type']) for i in reader]
+
+        cur.executemany("INSERT INTO gtfs_routes (route_id,route_type) VALUES (?, ?);", to_db)
+        self.db.commit()
+
+    def import_trips(self, trips_file):
+        cur = self.db.cursor()
+        drop_table_if_exists(self.db, "gtfs_trips")
+        cur.execute("CREATE TABLE gtfs_trips (trip_id, route_id);")
+
+        reader = csv.DictReader(io.TextIOWrapper(trips_file, 'utf-8'))
+        to_db = [(i['trip_id'], i['route_id']) for i in reader]
+
+        cur.executemany("INSERT INTO gtfs_trips (trip_id,route_id) VALUES (?, ?);", to_db)
+        self.db.commit()
+
     def import_stops(self, stops_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_stops")
@@ -37,10 +59,14 @@ class GtfsStopsImporter():
         
     def import_gtfs(self, gtfs_file):
         with zipfile.ZipFile(gtfs_file) as gtfs:
-            with gtfs.open('stops.txt', 'r') as stops_file:
-                self.import_stops(stops_file)
-            with gtfs.open('stop_times.txt', 'r') as stop_times_file:
-                self.import_stop_times(stop_times_file)
+            with gtfs.open('routes.txt', 'r') as routes_file:
+                self.import_routes(routes_file)
+            with gtfs.open('trips.txt', 'r') as trips_file:
+                self.import_trips(trips_file)
+            #with gtfs.open('stops.txt', 'r') as stops_file:
+            #self.import_stops(stops_file)
+            #with gtfs.open('stop_times.txt', 'r') as stop_times_file:
+            #self.import_stop_times(stop_times_file)
 
     def update_name_steig(self):
         cur = self.db.cursor()
@@ -60,12 +86,24 @@ class GtfsStopsImporter():
             with closing(self.db.cursor()) as ucur:
                 ucur.executemany("UPDATE haltestellen_unified SET Name_Steig = 'Ri '||? WHERE globaleID=?", stops)
         self.db.commit()
+
+    def update_mode(self):
+        cur = self.db.cursor()
+        query = """UPDATE haltestellen_unified SET mode=
+        (SELECT CASE WHEN r.route_type='3' THEN 'bus' WHEN r.route_type='2' THEN 'train' 
+                     WHEN r.route_type='0' OR r.route_type='1' THEN 'light_rail' ELSE NULL END FROM gtfs_routes r 
+                     JOIN gtfs_trips t ON r.route_id=t.route_id
+                     JOIN (SELECT stop_id, min(trip_id) trip_id FROM gtfs_stop_times GROUP BY stop_id) st ON t.trip_id=st.trip_id
+                     WHERE st.stop_id = haltestellen_unified.globaleID)"""
+        cur.execute(query)
+
+        self.db.commit()  
         
 def main(gtfs_file, sqlitedb):
     db = spatialite.connect(sqlitedb)
     db.execute("PRAGMA case_sensitive_like=ON")
     importer = GtfsStopsImporter(db)
-    #importer.import_gtfs(gtfs_file)
+    importer.import_gtfs(gtfs_file)
     importer.update_name_steig()
 
 if __name__ == '__main__':
