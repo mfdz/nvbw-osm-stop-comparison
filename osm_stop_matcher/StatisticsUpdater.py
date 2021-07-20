@@ -18,7 +18,7 @@ class StatisticsUpdater():
 							WHERE match_state='MATCHED_THOUGH_NAMES_DIFFER' 
 							  AND Haltestelle IS NULL AND Haltestelle_lang IS NULL""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_OSM_NO_NAME' 
-							WHERE globaleID IN (SELECT ifopt_id FROM matches m, osm_stops o WHERE o.name IS NULL AND m.osm_id = o.osm_id)""")
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m, osm_stops o WHERE (o.name IS NULL OR o.empty_name > 0) AND m.osm_id = o.osm_id)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_DISTANT' 
 							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE distance > 200)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_IMPROBABLE' 
@@ -35,7 +35,7 @@ class StatisticsUpdater():
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_NAMES_DIFFER' 
 			                WHERE osm_id IN (SELECT osm_id FROM matches WHERE name_distance < 0.4)""")
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_OSM_NO_NAME' 
-			                WHERE name IS NULL AND osm_id  IN (SELECT osm_id FROM matches m )""")
+			                WHERE (name IS NULL OR empty_name > 0) AND osm_id  IN (SELECT osm_id FROM matches m )""")
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_DISTANT' 
 			                WHERE osm_id IN (SELECT osm_id FROM matches m WHERE distance > 200)""")
 		self.db.execute("""UPDATE osm_stops SET match_state='MATCHED_THOUGH_IMPROBABLE' 

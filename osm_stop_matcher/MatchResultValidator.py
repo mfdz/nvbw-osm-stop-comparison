@@ -28,6 +28,14 @@ class MatchResultValidator():
 		if not len(cur.fetchall())==0:
 			self.report_error("ERROR: Got unexpected osm_stop to match for:", None, osm_id, note)
 
+	def check_name(self, osm_id, name):
+		cur = self.db.execute("SELECT * FROM osm_stops WHERE osm_id=? ", [osm_id])
+		stop = cur.fetchone()
+		if not stop:
+			self.report_error("ERROR: No osm_stop for: {}", None, osm_id, None)
+		elif stop['name'] != name:
+			self.report_error("ERROR: osm_stop {} had unexpected name", None, osm_id, stop['name'])
+
 	def check_assertions(self):
 		self.check_matched('de:08311:30822:0:5', 'n4391668851')
 		# Ensingen Feuerwehrmagazin.  kein Candidat. Mutmaßlich schlechterer Wert für Name Distance?	
@@ -61,3 +69,4 @@ class MatchResultValidator():
 		self.check_not_matched('de:08216:34829:1:2','n19089001', 'Multiple modes like light_rail and train=yes caused a matching issue here')
 
 		self.check_matched('de:14628:3455:0:2', 'n349860405', 'Even if stop_position when exact name match exists, match to platform is preferred')
+		self.check_name('w274101111', 'Waldheim, Niedermarkt')

@@ -411,6 +411,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.commit()
 
 	def update_infos_inherited_from_stop_areas_and_platforms(self):
+		# Note: we don't set empty_name flag, as we assume inheriting the name from platform should be good practice
 		self.db.execute("""UPDATE osm_stops AS o SET name = 
 			(SELECT pw.name FROM platform_nodes p, osm_stops pw 
 			  WHERE o.osm_id=p.node_id AND pw.osm_id = p.way_id)
@@ -422,7 +423,16 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		for stop in stops:
 			stop_area = self.area_for_stop.get(stop["osm_id"])
 			if stop_area:
+				# Note: we don't set empty_name, as we assume inheriting the name from stop_area should be good practice
 				self.db.execute("""UPDATE osm_stops SET name =? WHERE osm_id=?""", (stop_area.get("name"), stop["osm_id"]))
+		self.db.commit()
+
+		self.db.execute("""UPDATE osm_stops AS o SET empty_name=1, name = 
+			(SELECT a.name FROM osm_stops a WHERE a.mode='bus' AND a.public_transport='stop_position' 
+			   AND a.osm_id != o.osm_id AND a.lat BETWEEN o.lat - 0.0001 AND o.lat + 0.0001 
+			   AND a.lon BETWEEN o.lon - 0.0001 AND o.lon +0.0001 
+			   AND o.type='platform')
+			WHERE o.name IS NULL""")
 		self.db.commit()
 
 	def add_match_state(self):
