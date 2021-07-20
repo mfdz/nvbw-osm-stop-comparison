@@ -63,10 +63,10 @@ class GtfsStopsImporter():
                 self.import_routes(routes_file)
             with gtfs.open('trips.txt', 'r') as trips_file:
                 self.import_trips(trips_file)
-            #with gtfs.open('stops.txt', 'r') as stops_file:
-            #self.import_stops(stops_file)
-            #with gtfs.open('stop_times.txt', 'r') as stop_times_file:
-            #self.import_stop_times(stop_times_file)
+            with gtfs.open('stops.txt', 'r') as stops_file:
+                self.import_stops(stops_file)
+            with gtfs.open('stop_times.txt', 'r') as stop_times_file:
+                self.import_stop_times(stop_times_file)
 
     def update_name_steig(self):
         cur = self.db.cursor()
