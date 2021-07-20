@@ -59,3 +59,5 @@ class MatchResultValidator():
 		self.check_matched('de:08226:4252:3:2','n3188450069') # Wiesloch Walldorf (mode nvbw nicht erkannt)
 
 		self.check_not_matched('de:08216:34829:1:2','n19089001', 'Multiple modes like light_rail and train=yes caused a matching issue here')
+
+		self.check_matched('de:14628:3455:0:2', 'n349860405', 'Even if stop_position when exact name match exists, match to platform is preferred')

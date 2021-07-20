@@ -342,6 +342,16 @@ class OsmStopsImporter(osmium.SimpleHandler):
     							   AND ms.member_id = s.osm_id AND s.mode = 'bus' AND s.type='stop'
 								   AND ms.stop_area_id = mp.stop_area_id)""")
 
+		# We delete bus stop_positions where there are bus platforms nearby https://github.com/mfdz/nvbw-osm-stop-comparison/issues/4
+		self.db.execute("""DELETE FROM osm_stops AS d 
+			                WHERE d.osm_id IN 
+			                (SELECT a.osm_id
+			                   FROM osm_stops a, osm_stops b WHERE a.mode = 'bus' AND a.mode='bus' AND a.public_transport='stop_position' 
+			                    AND a.osm_id != b.osm_id 
+			                    AND b.lat BETWEEN a.lat - 0.0001 AND a.lat + 0.0001 
+			                    AND b.lon BETWEEN a.lon - 0.0001 AND a.lon +0.0001 
+			                    AND b.type='platform')""")
+
 		self.db.commit()
 	
 	def add_prev_and_next_stop_names(self):
