@@ -67,21 +67,23 @@ class StopMatcher():
 	def rank_successor_matching(self, stop, osm_stop):
 		richtung = stop["Name_Steig"]
 		ortsteil = stop['Ortsteil']
+		gemeinde = stop['Gemeinde']
+
 		if richtung:
 			match = re.match('(.*)(eRtg|Ri |>|Ri\.|Rtg|Richt |Fahrtrichtung|Ri-|Ri:|Richtung|Richtg\.|FR )(.*)', richtung)
 			if match:
 				richtung = match.group(3).strip()
-				richtung = richtung.replace(ortsteil, '')
-				richtung = richtung.replace(',', '')
-			if (len(stop["Name_Steig"]) > len(richtung)):
-				next_stops = osm_stop["next_stops"].replace(ortsteil, '')  if osm_stop["next_stops"] else None
-				prev_stops = osm_stop["prev_stops"].replace(ortsteil, '') if osm_stop["prev_stops"] else None
+				richtung = richtung.replace(ortsteil, '').replace(gemeinde, '')
+				richtung = richtung.replace(',', ' ')
+			
+				next_stops = osm_stop["next_stops"].replace(ortsteil, '').replace(gemeinde, '')  if osm_stop["next_stops"] else None
+				prev_stops = osm_stop["prev_stops"].replace(ortsteil, '').replace(gemeinde, '') if osm_stop["prev_stops"] else None
 				
 				similarity_next = ngram.NGram.compare(richtung, next_stops,N=1)
 				similarity_prev = ngram.NGram.compare(richtung, prev_stops,N=1)
-				if similarity_next > 0.7 and similarity_prev < 0.5:
+				if similarity_next > 0.7 and similarity_prev < 0.6:
 					return 1
-				elif similarity_prev > 0.7 and similarity_next < 0.5:
+				elif similarity_prev > 0.7 and similarity_next < 0.6:
 					return -1
 		return 0
 
