@@ -420,11 +420,13 @@ class OsmStopsImporter(osmium.SimpleHandler):
 
 		cur = self.db.execute("""SELECT osm_id FROM osm_stops WHERE name IS NULL""")
 		stops = cur.fetchall()
+		rows = []
 		for stop in stops:
 			stop_area = self.area_for_stop.get(stop["osm_id"])
 			if stop_area:
-				# Note: we don't set empty_name, as we assume inheriting the name from stop_area should be good practice
-				self.db.execute("""UPDATE osm_stops SET name =? WHERE osm_id=?""", (stop_area.get("name"), stop["osm_id"]))
+				rows.append((stop_area.get("name"), stop["osm_id"]))
+		# Note: we don't set empty_name, as we assume inheriting the name from stop_area should be good practice		
+		self.db.executemany("""UPDATE osm_stops SET name =? WHERE osm_id=?""", rows)
 		self.db.commit()
 
 		self.db.execute("""UPDATE osm_stops AS o SET empty_name=1, name = 
