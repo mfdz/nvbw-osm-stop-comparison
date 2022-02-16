@@ -54,6 +54,8 @@ class DelfiStopsImporter():
 				SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, s.dhid parent, '' match_state from zhv s JOIN zhv a ON a.parent=s.dhid JOIN zhv q ON q.parent=a.dhid WHERE q.type ='Q' AND a.type='A' AND s.type='S' AND NOT q.state = 'Unserved' AND NOT q.condition='OutOfOrder'
 				UNION
 				SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, s.description Haltebeschreibung, s.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, s.Latitude lat, s.Longitude lon, 'Halt' Art, '' Name_Steig, '' mode, NULL parent, '' match_state from zhv s WHERE s.type='S' AND s.dhid NOT IN (SELECT a.parent FROM zhv q JOIN zhv a ON q.parent=a.dhid WHERE q.type='Q') AND NOT s.state = 'Unserved' AND NOT s.condition='OutOfOrder'""")
+			# Remove Zugang/Ersatzverkehre (=Unserved?)
+			cur.execute("DELETE FROM haltestellen_unified WHERE Haltebeschreibung LIKE '%Zugang%' OR Haltebeschreibung LIKE '%Ersatz%' " )
 			cur.execute("CREATE INDEX id_idx ON haltestellen_unified(globaleID)")
 			cur.execute("SELECT AddGeometryColumn('haltestellen_unified', 'the_geom', 4326, 'POINT','XY')")
 			cur.execute("UPDATE haltestellen_unified SET the_geom = MakePoint(lon,lat, 4326) WHERE lon is NOT NULL")
