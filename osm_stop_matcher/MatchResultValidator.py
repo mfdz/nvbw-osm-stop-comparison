@@ -9,7 +9,10 @@ class MatchResultValidator():
 		if ifopt_id:
 			cur = self.db.execute("SELECT lat, lon FROM haltestellen_unified WHERE globaleID=?", [ifopt_id])
 			stop = cur.fetchone()
-			self.logger.warn("%s %s", msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
+			if stop:
+				self.logger.warn("%s %s", msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
+			else:
+				self.logger.warn("%s %s", msg.format(ifopt_id, osm_id), "({})".format(note))	
 		else:
 			self.logger.warn("%s %s", msg.format(osm_id), "({})".format(note))
 
