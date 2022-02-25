@@ -1,5 +1,5 @@
 # GTFS/NVBW OSM Stop Comparison
-This project provides some scripts to compare officially provided stops from Nahverkerkehrsgesellschaft Baden-Württemberg (NVBW) or DELIF e.V. with stops extracted from OpenStreetMap.
+This project provides some scripts to compare officially provided stops from Nahverkerkehrsgesellschaft Baden-Württemberg (NVBW) or DELFI e.V. with stops extracted from OpenStreetMap.
 
 Note: Theses scripts currently rely on the specific file format of the NVBW or zHV Haltestellen file but might one day be generalized to a further input sources, e.g. GTFS-feeds.
 
