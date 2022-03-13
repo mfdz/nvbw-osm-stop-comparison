@@ -314,6 +314,20 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
 
+		# We delete stop_positions for buses if there is a platform with the same IFOPT in the vicinity.
+		self.db.execute("""DELETE FROM osm_stops 
+			                WHERE osm_id IN (
+								SELECT h.osm_id
+								  FROM osm_stops h, osm_stops s
+								 WHERE h.type IN ('stop')
+								   AND h.mode IN ('bus')
+								   AND h.ref = s.ref 
+								   AND s.type IN ('platform') 
+								   AND s.ref_key = 'ref:IFOPT'
+								   AND s.ref_key = h.ref_key
+								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
+								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
+
 		# We delete platforms for trains/lightrails/trams if there is a stop_position with trains/lightrails in the vicinity.
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE osm_id IN (
