@@ -8,8 +8,8 @@ Note: Theses scripts currently rely on the specific file format of the NVBW or z
 To compare transit stops with osm data, you need
 * an OSM pbf file covering the transit area, e.g.
   http://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf
-* a stops file, e.g. curl --output zhv.zip https://de.data.public-transport.earth/zhv.zip
-* a gtfs file e.g. curl --output gtfs-germany.zip https://de.data.public-transport.earth/gtfs-germany.zip
+* a stops file, e.g. curl --output zhv.zip -L https://scraped.data.public-transport.earth/de/zhv.zip
+* a gtfs file e.g. curl --output gtfs-germany.zip -L https://eu.data.public-transport.earth/gtfs/de
 
 
 
