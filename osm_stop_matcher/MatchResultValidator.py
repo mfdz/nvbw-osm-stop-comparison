@@ -10,11 +10,11 @@ class MatchResultValidator():
 			cur = self.db.execute("SELECT lat, lon FROM haltestellen_unified WHERE globaleID=?", [ifopt_id])
 			stop = cur.fetchone()
 			if stop:
-				self.logger.warn("%s %s", msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
+				self.logger.warning("%s %s", msg.format(ifopt_id, osm_id), "({}) ({}, {})".format(note, stop["lat"], stop["lon"]))
 			else:
-				self.logger.warn("%s %s", msg.format(ifopt_id, osm_id), "({})".format(note))	
+				self.logger.warning("%s %s", msg.format(ifopt_id, osm_id), "({})".format(note))	
 		else:
-			self.logger.warn("%s %s", msg.format(osm_id), "({})".format(note))
+			self.logger.warning("%s %s", msg.format(osm_id), "({})".format(note))
 
 	def check_matched(self, ifopt_id, osm_id, note = ''):
 		cur = self.db.execute("SELECT * FROM matches WHERE ifopt_id=? AND osm_id = ?", [ifopt_id, osm_id])

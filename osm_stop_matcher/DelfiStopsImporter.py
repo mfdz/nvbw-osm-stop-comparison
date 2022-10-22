@@ -1,8 +1,13 @@
 import csv
 import datetime
 from .util import xstr, drop_table_if_exists
+import logging
+
+logger = logging.getLogger('DelfiStopsImporter')
 
 class DelfiStopsImporter():
+	
+
 	def __init__(self, connection):
 		self.db = connection
 		
@@ -37,15 +42,16 @@ class DelfiStopsImporter():
 				xstr(row['TariffDHID']),
 				xstr(row['TariffName'])
 				) for row in dr]
-
+			logger.info("Loaded stops from DELF zHV")
 			cur.executemany("""INSERT INTO zhv (SeqNo, Type, DHID, Parent, Name, 
 			Latitude, Longitude, MunicipalityCode, Municipality, DistrictCode, District, Condition, 
 			State, Description,
 			Authority, DelfiName, TariffDHID, TariffName) VALUES (?{})""".format(",?"*17), to_db)
-
+			logger.info("Inserted stops into table zhv")
 			cur.execute("SELECT InitSpatialMetaData()")
 			cur.execute("SELECT AddGeometryColumn('zhv', 'the_geom', 4326, 'POINT','XY')")
 			cur.execute("UPDATE zhv SET the_geom = MakePoint(Longitude,Latitude, 4326) WHERE Longitude is NOT NULL")
+			logger.info("Updated zhv.geom")
 			cur.execute("CREATE INDEX id_steig_idx ON zhv(DHID)")
 
 			cur.execute("""CREATE TABLE haltestellen_unified AS 
@@ -54,6 +60,7 @@ class DelfiStopsImporter():
 				SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, s.dhid parent, '' match_state from zhv s JOIN zhv a ON a.parent=s.dhid JOIN zhv q ON q.parent=a.dhid WHERE q.type ='Q' AND a.type='A' AND s.type='S' AND NOT q.state = 'Unserved' AND NOT q.condition='OutOfOrder'
 				UNION
 				SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, s.description Haltebeschreibung, s.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, s.Latitude lat, s.Longitude lon, 'Halt' Art, '' Name_Steig, '' mode, NULL parent, '' match_state from zhv s WHERE s.type='S' AND s.dhid NOT IN (SELECT a.parent FROM zhv q JOIN zhv a ON q.parent=a.dhid WHERE q.type='Q') AND NOT s.state = 'Unserved' AND NOT s.condition='OutOfOrder'""")
+			logger.info("Created table haltestellen_unified")
 			# Remove Zugang/Ersatzverkehre (=Unserved?)
 			cur.execute("DELETE FROM haltestellen_unified WHERE Haltebeschreibung LIKE '%Zugang%' OR Haltebeschreibung LIKE '%Ersatz%' " )
 			cur.execute("CREATE INDEX id_idx ON haltestellen_unified(globaleID)")

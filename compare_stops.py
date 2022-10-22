@@ -22,16 +22,17 @@ import logging
 
 # TODO
 # introduce some more deterministics choosing ambigous candidates as winning match
-# label matches for which an equally rated candidate exists as ambigous
-# label current ambigous match as matched_parent_stop_only
+# label matches for which an equally rated candidate exists as ambiguous
+# label current ambiguous match as matched_parent_stop_only
 # pre/succ currently only works for (bus) platforms...
-def main(osmfile, stops_file, gtfs_file, stopsprovider):
-    logging.basicConfig(filename='matching.log', filemode='w', level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+def main(osmfile, db_file, stops_file, gtfs_file, stopsprovider, logfile):
+    logging.basicConfig(filename=logfile, filemode='w', level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     
     logger = logging.getLogger('compare_stops')
-    db = spatialite.connect('stops.db')
+    db = spatialite.connect(db_file)
     db.execute("PRAGMA case_sensitive_like=ON")
     db.row_factory = sqlite3.Row
+    logger.info("Starting compare_stops...")
 
     if stops_file:
         if stopsprovider == 'NVBW':
@@ -45,16 +46,19 @@ def main(osmfile, stops_file, gtfs_file, stopsprovider):
     
     if osmfile:
         OsmStopsImporter(db, osm_file = osmfile)
-        print("Imported osm file")
+        logger.info("Imported osm file")
 
     if gtfs_file:
         importer = GtfsStopsImporter(db)
         importer.import_gtfs(gtfs_file)
         importer.update_name_steig()
+        logger.info("Updated quai names")
         importer.update_mode()
+        logger.info("Updated mode")
+    
     
     StopMatcher(db).match_stops()
-    print("Matched and exported candidates")
+    logger.info("Matched and exported candidates")
     MatchPicker(db).pick_matches()
     MatchResultValidator(db).check_assertions()
     StatisticsUpdater(db).update_match_statistics()
@@ -69,7 +73,9 @@ if __name__ == '__main__':
     parser.add_argument('-s', dest='stopsfile', required=False, help='Stops file')
     parser.add_argument('-g', dest='gtfs_file', required=False, help='GTFS file')
     parser.add_argument('-p', dest='stopsprovider', required=False, help='Stops provider', default='NVBW')
+    parser.add_argument('-d', dest='db_file', required=False, help='sqlite DB out file', default='out/stops.db')
+    parser.add_argument('-l', dest='log_file', required=False, help='log file', default='out/matching.log')
     
     args = parser.parse_args()
-
-    exit(main(args.osmfile, args.stopsfile, args.gtfs_file, args.stopsprovider))
+    print("Launching compare_stops. Progress is logged to " + args.log_file)
+    exit(main(args.osmfile, args.db_file, args.stopsfile, args.gtfs_file, args.stopsprovider, args.log_file))
