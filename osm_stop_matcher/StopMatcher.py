@@ -10,6 +10,12 @@ from osm_stop_matcher.util import  drop_table_if_exists, backup_table_if_exists
 
 class StopMatcher():
 	UNKNOWN_MODE_RATING = 0.3
+	MINIMUM_SUCCESSOR_SIMILARITY = 0.6
+	MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE = 0.11
+	
+	DIRECTION_PREFIX_PATTERN = '(.*)(eRtg|Ri |>|Ri\.|Rtg|Richt |Fahrtrichtung|Ri-|Ri:|Richtung|Richtg\.|FR )(.*)'
+	STOPS_SEPARATOR = '/'
+	
 	official_matches = {}
 	osm_matches = {}
 	errors = {}
@@ -64,35 +70,58 @@ class StopMatcher():
 			}
 			self.osm_stops.insert(id = cnt, coordinates=(lat, lon, lat, lon), obj= stop)
 
+	def substring_after(self, string , char):
+		index = string.find(char)
+		if index > -1:
+			return string[index+1:]
+		else:
+			return string
+
+	def compare_stop_names(self, offical_stoplist, osm_stoplist):
+		if osm_stoplist is None:
+			return 0
+
+		best_value = 0
+		for official_stop in re.sub("\(\w*\)", '', offical_stoplist).split(self.STOPS_SEPARATOR):
+			for osm_stop in re.sub("\(\w*\)", '', osm_stoplist).split(self.STOPS_SEPARATOR):
+
+				value = ngram.NGram.compare(official_stop, osm_stop, N=1)
+				if value > best_value:
+					best_value = value
+
+		return best_value
+
 	def rank_successor_matching(self, stop, osm_stop):
 		richtung = stop["Name_Steig"]
 		ortsteil = stop['Ortsteil']
 		gemeinde = stop['Gemeinde']
 
 		if richtung:
-			match = re.match('(.*)(eRtg|Ri |>|Ri\.|Rtg|Richt |Fahrtrichtung|Ri-|Ri:|Richtung|Richtg\.|FR )(.*)', richtung)
+			match = re.match(self.DIRECTION_PREFIX_PATTERN, richtung)
 			if match:
 				richtung = match.group(3).strip()
-				richtung = richtung.replace(ortsteil, '').replace(gemeinde, '')
-				richtung = richtung.replace(',', ' ')
-			
-				next_stops = osm_stop["next_stops"].replace(ortsteil, '').replace(gemeinde, '')  if osm_stop["next_stops"] else None
-				prev_stops = osm_stop["prev_stops"].replace(ortsteil, '').replace(gemeinde, '') if osm_stop["prev_stops"] else None
-				
-				similarity_next = ngram.NGram.compare(richtung, next_stops,N=1)
-				similarity_prev = ngram.NGram.compare(richtung, prev_stops,N=1)
-				if similarity_next > 0.7 and similarity_prev < 0.6:
+				richtung = self.normalize_direction(richtung, ortsteil, gemeinde)
+				# Note: removing the current stop's city from the successor/predecessor might remove the wrong significant part,
+				# e.g. 
+				next_stops = self.normalize_direction(osm_stop["next_stops"], ortsteil, gemeinde) if osm_stop["next_stops"] else None
+				prev_stops = self.normalize_direction(osm_stop["prev_stops"], ortsteil, gemeinde) if osm_stop["prev_stops"] else None
+				similarity_next = self.compare_stop_names(richtung, next_stops)
+				similarity_prev = self.compare_stop_names(richtung, prev_stops)
+				self.logger.info("Successor ranking for %s (%s, %s): next %s (%.2f) prev %s (%.2f)", richtung, ortsteil, gemeinde, next_stops, similarity_next, prev_stops, similarity_prev)
+				if similarity_next >= self.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_next - similarity_prev) >= self.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
 					return 1
-				elif similarity_prev > 0.7 and similarity_next < 0.6:
+				elif similarity_prev >= self.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_prev - similarity_next) >= self.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
 					return -1
 		return 0
 
+	def normalize_direction(self, dir, ortsteil, gemeinde):
+		dir = dir.replace(ortsteil+' ', '') if ortsteil else dir
+		dir = dir.replace(gemeinde+' ', '') if gemeinde else dir
+		return dir.replace('trasse', 'tr').replace(',', ' ').replace('-', ' ').strip()
+
 	def rank_mode(self, stop, candidate):
-		if (candidate["mode"] == 'bus' and stop["mode"] == 'bus' or 
-			candidate["mode"] == 'light_rail' and stop["mode"] == 'light_rail' or
-			candidate["mode"] == 'train' and stop["mode"] == 'train' or
-			candidate["mode"] == 'trainish' and stop["mode"] in ['train', 'light_rail'] or
-			candidate["mode"] == 'tram' and stop["mode"] == 'tram'):
+		if (candidate["mode"] == stop["mode"] or
+			candidate["mode"] == 'trainish' and stop["mode"] in ['train', 'light_rail']):
 			return 1
 		elif not candidate["mode"] or not stop["mode"]:
 			return 0.7
@@ -124,13 +153,13 @@ class StopMatcher():
 			# TODO: We currently ignore, that OSM IFOPTS are currently duplicated for some stops...
 			rating = 1
 		else:
-			rating = name_distance / ( 1 + distance )
+			rating = name_distance / ( 1 + distance/10.0 )
 			# We boost a candidate if steig matches
 			if platform_mismatches:
 				# Note: since OSM has some refs wrongly tagged as bus route number...
 				rating = rating*0.5
 
-			rating = rating ** (1 - successor_rating * 0.2 - mode_rating * 0.1 - mode_rating * platform_matches * 0.5)
+			rating = rating ** (1 - successor_rating * 0.3 - mode_rating * 0.1 - mode_rating * platform_matches * 0.1)
 
 		self.logger.debug("rating: %s name_distance: %s matched_name: %s osm_name: %s platform_matches: %s successor_rating: %s, mode_rating: %s", rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)
 		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)

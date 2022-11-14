@@ -21,7 +21,8 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 					candidates[candidate].sort(reverse = True, key = get_rating)
 					candidates[candidate] = [candidates[candidate][0]]
 					
-	if matched_index < len(agency_stops):
+	agency_stops_cnt = len(agency_stops)
+	if matched_index < agency_stops_cnt:
 		stop_candidates = candidates.get(agency_stops[matched_index])
 		best_rating = 0
 		best_matches = []
@@ -35,13 +36,13 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 					best_matches = current_matches
 		return (best_rating, best_matches)
 	else:
-		# All agency stops are matched, calculated rating for this match assmebly
-		sum = 0
-		if matches:
-			for match in matches:
-				sum += match['rating']
-				#sum += match['rating']
-		return (sum, matches)
+		# All agency stops are matched, calculated rating for this match assembly
+		unmatched_cnt = agency_stops_cnt - len(matches)
+		# Rank all unmatched with the mininum acceptance value
+		product_of_unmatched = pow(config.RATING_BELOW_CANDIDATES_ARE_IGNORED, unmatched_cnt)
+		product_of_matches_rating = math.prod(map(lambda m: m['rating'], matches))
+		root = pow(product_of_matches_rating*product_of_unmatched, 1.0/agency_stops_cnt)
+		return (root, matches)
 
 class MatchPicker():
 

@@ -10,8 +10,6 @@ class StatisticsUpdater():
 		self.db.execute("""UPDATE haltestellen_unified 
 			                  SET match_state='MATCHED' 
 			                WHERE globaleID IN (SELECT ifopt_id FROM matches)""")
-		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_AMBIGOUSLY' 
-							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_NAMES_DIFFER' 
 			                WHERE globaleID IN (SELECT ifopt_id FROM matches WHERE name_distance < 0.4)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_NO_NAME' 
@@ -23,6 +21,10 @@ class StatisticsUpdater():
 							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE distance > 200)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_IMPROBABLE' 
 							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE rating < 0.002)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_REVERSED_DIR' 
+							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE successor_rating =-1)""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_AMBIGOUSLY' 
+							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH' 
 							WHERE globaleID NOT IN (SELECT ifopt_id FROM matches);""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_BUT_OTHER_PLATFORM_MATCHED' 
