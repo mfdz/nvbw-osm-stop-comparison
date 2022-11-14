@@ -1,7 +1,7 @@
 # GTFS/NVBW OSM Stop Comparison
 This project provides some scripts to compare officially provided stops from Nahverkerkehrsgesellschaft Baden-Württemberg (NVBW) or DELFI e.V. with stops extracted from OpenStreetMap.
 
-Note: Theses scripts currently rely on the specific file format of the NVBW or zHV Haltestellen file but might one day be generalized to a further input sources, e.g. GTFS-feeds.
+Note: Theses scripts currently rely on the specific file format of the NVBW or zHV Haltestellen file but might one day be generalized to further input sources, e.g. GTFS-feeds.
 
 ## Prerequisites
 
@@ -12,18 +12,68 @@ To compare transit stops with osm data, you need
 * a gtfs file e.g. curl --output gtfs-germany.zip -L https://data.public-transport.earth/gtfs/de
 
 
+These can be downloade e.g. with the provided scripts `download_delfi_and_osm_data.sh` or `download_nvbw_and_osm_data.sh`.
+
+### sqlite and spatiallite on mac
+see e.g. https://medium.com/@carusot42/installing-and-loading-spatialite-on-macos-28bf677f0436
+
+```sh
+brew install sqlite3 
+find /usr/local -path "*sqlite3" | grep -e "sqlite3$" | grep "/bin"
+/usr/local/Cellar/sqlite/3.39.2/bin/sqlite3 out/stops-bw.db
+```
+
+### Python requirements 
+Optionally, you might want to create a python environment to install needed libraries in an isolated enviroment:
+
+```sh
+> makevirtualenv nosc
+```
+
+Then, you should install the required python libraries:
+```sh
+> pip install -r requirements.txt
+```
+
 
 ## How to run
-```
-> pip install -r requirements.txt
-> python3 compare_stops.py  -o <path to baden-wuerttemberg-latest.osm.pbf> -s <nvbw stopsfile>
-```
+
+The GTFS/NVBW Stops comparison supports three official stop sources for comparison against OSM:
+* DELFI's stop register (zHV)
+* NVBW's stop register (zHV)
+* GTFS feeds
 
 ### Compare DELFI eV stops to OSM
-```
-> pip install -r requirements.txt
-> python3 compare_stops.py  -o <path to germany-latest.osm.pbf> -s <zVV stopsfile> -p DELFI
+```sh
+> python3 compare_stops.py -o data/germany-latest.osm.pbf -g data/gtfs-germany.zip -s data/zhv.csv -p DELFI
 ```
 
+### Compare NVBW stops to OSM
+```sh
+> python3 compare_stops.py -o data/baden-wuerttemberg-latest.osm.pbf -g data/gtfs-bw.zip -s data/zhv-bw.csv -d out/stops-bw.db -p NVBW 
+```
+
+### Compare GTFS stops to OSM
+The comparison option `GTFS` compares stops provide by a GTFS-Feed to OpenStreetMap.
+Note, that we currently apply some very NVBW-feed specific processing to these stops, which should be configurable and extendable for other feeds.
+
+```
+> python3 compare_stops.py -o data/baden-wuerttemberg-latest.osm.pbf -g data/gtfs-bw.zip -d out/stops-bw.db -p GTFS 
+```
 
 This script will create a spatialite database, import the official stops and the osm stops, calculate probable match candidates and finally pick the most probable matches.
+
+## Docker
+
+If you want to use this project via docker, proceed as follows:
+
+Build the docker image via 
+`docker build -t mfdz/gtfs-osm-stops-matcher .`
+
+Run the comparison via
+`docker run --rm -v $(PWD)/data:/usr/src/app/data -v $(PWD)/out:/usr/src/app/out mfdz/gtfs-osm-stops-matcher python compare_stops.py -o data/germany-latest.osm.pbf -s data/zhv.csv -g data/gtfs-germany.zip -p DELFI`
+
+`docker run --rm -v $(PWD)/data:/usr/src/app/data -v $(PWD)/out:/usr/src/app/out mfdz/gtfs-osm-stops-matcher python compare_stops.py -g data/gtfs-germany.zip -p DELFI`
+
+## Running tests
+

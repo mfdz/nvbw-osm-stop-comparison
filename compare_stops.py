@@ -34,6 +34,16 @@ def main(osmfile, db_file, stops_file, gtfs_file, stopsprovider, logfile):
     db.row_factory = sqlite3.Row
     logger.info("Starting compare_stops...")
 
+    if gtfs_file:
+        logger.info("Start importing gtfs " + gtfs_file)
+        importer = GtfsStopsImporter(db)
+        importer.import_gtfs(gtfs_file)
+        # TODO make config dependent
+        importer.patch_gtfs()
+        logger.info("Imported gtfs")
+        if stopsprovider == 'GTFS':
+            importer.load_haltestellen_unified()
+
     if stops_file:
         if stopsprovider == 'NVBW':
             NvbwStopsImporter(db).import_stops(stops_file)
@@ -49,13 +59,11 @@ def main(osmfile, db_file, stops_file, gtfs_file, stopsprovider, logfile):
         logger.info("Imported osm file")
 
     if gtfs_file:
-        importer = GtfsStopsImporter(db)
-        importer.import_gtfs(gtfs_file)
         importer.update_name_steig()
         logger.info("Updated quai names")
         importer.update_mode()
         logger.info("Updated mode")
-    
+        
     
     StopMatcher(db).match_stops()
     logger.info("Matched and exported candidates")
