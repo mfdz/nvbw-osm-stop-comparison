@@ -210,7 +210,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		return ifopt.lower().replace("de:8", "de:08")
 
 	def extract_stop_mode(self, tags):
-		ordered_ref_keys= ["bus","train","tram","light_rail",]
+		ordered_ref_keys= ["bus","train","tram","light_rail","ferry","funicular"]
 		first_occurrence = None
 		for key in ordered_ref_keys:
 			if key in tags and tags[key]=='yes':
