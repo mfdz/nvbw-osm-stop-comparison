@@ -61,9 +61,8 @@ class GtfsStopsImporter():
             SElECT '' Landkreis, '' Gemeinde, '' Ortsteil, substr(stop_name, instr(stop_name, ' ')+1) Haltestelle, stop_name Haltestelle_lang, '' HalteBeschreibung, stop_id globaleID, '' HalteTyp, NULL gueltigAb, NULL gueltigBis, cast(stop_lat as real) lat, cast(stop_lon as real) lon, 
              CASE WHEN (LENGTH(stop_id)-LENGTH(REPLACE(stop_id, ':','')))=4 THEN 'Steig' ELSE 'Halt' END Art , 
              platform_code Name_Steig, 
-              NULL mode, NULL parent, NULL match_state, NULL linien FROM gtfs_stops
-              where (stop_id like 'de:08%' or stop_id like 'gen:8%')
-                AND (location_type="0" or location_type="");
+              NULL mode, NULL parent, NULL match_state, NULL linien, platform_code FROM gtfs_stops
+              where (location_type="0" or location_type="");
             """)
 
         # Patches for NVBW GTFS
@@ -144,7 +143,7 @@ class GtfsStopsImporter():
                      WHEN r.route_type in ('3') THEN 'bus'
                      WHEN r.route_type in ('4') THEN 'ferry'
                      WHEN r.route_type in ('5') THEN 'funicular'
-                     ELSE NULL END 
+                     ELSE NULL END
                      FROM tmp_stop_times st
                      JOIN gtfs_trips t ON t.trip_id=st.trip_id
                      JOIN gtfs_routes r ON r.route_id=t.route_id
@@ -174,6 +173,14 @@ class GtfsStopsImporter():
                 (SELECT route_short_names FROM tmp_stop_routes sr WHERE sr.stop_id=globaleID)"""
         cur.execute(query)
         drop_table_if_exists(self.db, "tmp_stop_routes")
+        self.db.commit()
+
+    def update_platform_code(self):
+        cur = self.db.cursor()
+
+        query = """UPDATE haltestellen_unified SET platform_code =
+                (SELECT platform_code FROM gtfs_stops s WHERE s.stop_id=globaleID)"""
+        cur.execute(query)
         self.db.commit()
         
 def main(gtfs_file, sqlitedb):

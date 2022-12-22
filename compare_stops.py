@@ -64,6 +64,8 @@ def main(osmfile, db_file, stops_file, gtfs_file, stopsprovider, logfile):
         importer.update_mode()
         logger.info("Updated mode")
         
+    importer.update_platform_code()
+    logger.info("Updated platform codes")
     
     StopMatcher(db).match_stops()
     logger.info("Matched and exported candidates")

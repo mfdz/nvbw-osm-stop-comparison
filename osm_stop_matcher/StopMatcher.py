@@ -128,6 +128,17 @@ class StopMatcher():
 		else:
 			return 0
 
+	def rank_platform(self, stop, candidate):
+		ifopt_platform = stop["platform_code"]
+		candidate_platform = candidate["assumed_platform"]
+
+		if (ifopt_platform == None or ifopt_platform=='') and (candidate_platform == None or candidate_platform == ''):
+			return 0.9
+		elif ifopt_platform == str(candidate_platform):
+			return 1.0
+		else:
+			return 0.0
+		
 	def rank_candidate(self, stop, candidate, distance):
 		osm_name = candidate["name"]
 		name_distance_short_name = ngram.NGram.compare(stop["Haltestelle"],osm_name,N=1)
@@ -142,27 +153,22 @@ class StopMatcher():
 		
 		(short_name_matched, matched_name) = (False, stop["Haltestelle_lang"]) if name_distance_short_name < name_distance_long_name else (True, stop["Haltestelle"])
 		name_distance = max(name_distance_short_name, name_distance_long_name)
-		platform_id = stop["globaleID"]
-		ifopt_platform = platform_id[platform_id.rfind(":") + 1 :] if platform_id and platform_id.count(':') > 3 else None
-		platform_matches = ifopt_platform == str(candidate["assumed_platform"])
-		platform_mismatches = not ifopt_platform == None and not candidate["assumed_platform"] == None and not platform_matches
 		mode_rating = self.rank_mode(stop, candidate)
 		successor_rating = self.rank_successor_matching(stop, candidate)
-		
+		platform_rating = self.rank_platform(stop, candidate)
+
 		if candidate["ref"] == stop["globaleID"]:
 			# TODO: We currently ignore, that OSM IFOPTS are currently duplicated for some stops...
 			rating = 1
 		else:
-			rating = name_distance / ( 1 + distance/10.0 )
+			rating = name_distance / ( 1 + distance / 10.0 )
 			# We boost a candidate if steig matches
-			if platform_mismatches:
-				# Note: since OSM has some refs wrongly tagged as bus route number...
-				rating = rating*0.5
+			# Note: since OSM has some refs wrongly tagged as bus route number...
+			
+			rating = (rating * (0.5 + 0.5 * platform_rating)) ** (1 - successor_rating * 0.3 - mode_rating * 0.2)
 
-			rating = rating ** (1 - successor_rating * 0.3 - mode_rating * 0.1 - mode_rating * platform_matches * 0.1)
-
-		self.logger.debug("rating: %s name_distance: %s matched_name: %s osm_name: %s platform_matches: %s successor_rating: %s, mode_rating: %s", rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)
-		return (rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating)
+		self.logger.debug("rating: %s name_distance: %s matched_name: %s osm_name: %s platform_rating: %s successor_rating: %s, mode_rating: %s", rating, name_distance, matched_name, osm_name, platform_rating, successor_rating, mode_rating)
+		return (rating, name_distance, matched_name, osm_name, platform_rating, successor_rating, mode_rating)
 
 	def rank_candidates(self, stop, stop_id, coords, candidates):
 		matches = []

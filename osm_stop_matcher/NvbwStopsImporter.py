@@ -92,7 +92,7 @@ class NvbwStopsImporter():
 					WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Stadtbahn%' THEN 'light_rail'
 					WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Steig LIKE '%Gl.%' OR Name_Steig LIKE '%Gleis%' THEN 'train'
 					ELSE NULL
-				END mode, NULL parent, match_state, '' linien FROM haltestellen 
+				END mode, NULL parent, match_state, '' linien, '' platform_code FROM haltestellen 
 			 WHERE lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID IS NOT NULL
 			   AND (gueltigBis IS NULL OR gueltigBis >= Date('now'))
 			UNION
@@ -102,7 +102,7 @@ class NvbwStopsImporter():
 					WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Stadtbahn%'THEN 'light_rail'
 					WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Steig LIKE '%Gl.%' OR Name_Steig LIKE '%Gleis%' THEN 'train'
 					ELSE NULL
-				END mode, globaleID parent, match_state, '' linien FROM haltestellen
+				END mode, globaleID parent, match_state, '' linien, '' platform_code FROM haltestellen
 			 WHERE lon_Steig IS NULL AND (match_state IS NULL or match_state='matched') AND globaleID_Bereich IS NOT NULL AND lon_Bereich is NOT NULL
 			   AND (gueltigBis IS NULL OR gueltigBIS >= Date('now'))
 			   AND (gueltigBisBereich IS NULL OR gueltigBisBereich >= Date('now'))
@@ -114,7 +114,7 @@ class NvbwStopsImporter():
 					WHEN Name_Bereich LIKE '%Stb.%' OR Name_Bereich LIKE '%Stadtbahn%' THEN 'light_rail'
 					WHEN Name_Bereich LIKE '%Bahn%' OR Name_Bereich LIKE '%Gleis%' OR Name_Steig LIKE '%Gl.%' OR Name_Steig LIKE '%Gleis%' THEN 'train'
 					ELSE NULL
-				END mode, globaleID parent, match_state, '' linien FROM haltestellen 
+				END mode, globaleID parent, match_state, '' linien, '' platform_code FROM haltestellen 
 			 WHERE lon_Steig IS NOT NULL AND globaleID_Steig IS NOT NULL
 			   AND (match_state IS NULL or match_state='matched')
 			   AND (gueltigBis IS NULL OR gueltigBIS >= Date('now'))
