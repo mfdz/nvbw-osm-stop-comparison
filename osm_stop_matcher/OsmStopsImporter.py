@@ -255,6 +255,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 	def store_platform_nodes(self):
 		self.db.executemany("INSERT INTO platform_nodes VALUES (?,?)", self.platform_nodes)
 		self.db.execute("CREATE INDEX pl_nd_idx ON platform_nodes(node_id)")
+		self.db.execute("CREATE INDEX pl_wy_idx ON platform_nodes(way_id)")
 		self.db.commit()
 
 	def store_successors(self, rows):
