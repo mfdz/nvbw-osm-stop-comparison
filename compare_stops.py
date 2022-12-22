@@ -103,7 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', dest='osmfile', required=False, help='OpenStreetMap pbf file')
     parser.add_argument('-s', dest='stopsfile', required=False, help='Stops file')
     parser.add_argument('-g', dest='gtfs_file', required=False, help='GTFS file')
-    parser.add_argument('-p', dest='stopsprovider', required=False, help='Stops provider', default='NVBW')
+    parser.add_argument('-p', dest='stopsprovider', required=True, help='Stops provider.', choices=['DELFI','GTFS','NVBW'])
     parser.add_argument('-d', dest='db_file', required=False, help='sqlite DB out file', default='out/stops.db')
     parser.add_argument('-l', dest='log_file', required=False, help='log file', default='out/matching.log')
     

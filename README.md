@@ -1,10 +1,14 @@
 # GTFS/NVBW OSM Stop Comparison
-This project provides some scripts to compare officially provided stops from Nahverkerkehrsgesellschaft Baden-Württemberg (NVBW) or DELFI e.V. with stops extracted from OpenStreetMap.
+This project provides some scripts to compare officially provided stops from e or DELFI e.V. with stops extracted from OpenStreetMap.
 
-Note: Theses scripts currently rely on the specific file format of the NVBW or zHV Haltestellen file but might one day be generalized to further input sources, e.g. GTFS-feeds.
+Currently supported are the following stop sources:
+* [stops list Nahverkerkehrsgesellschaft Baden-Württemberg (NVBW)](https://www.mobidata-bw.de/dataset/haltestellen-baden-wuerttemberg)
+* DELFI's zentrales Haltestellenverzeichnis (zHV)
+* a GTFS file (Beta, developed for bwgesamt.zip, currently code makes various assumptions regarding the content )
 
 ## Prerequisites
 
+### Data
 To compare transit stops with osm data, you need
 * an OSM pbf file covering the transit area, e.g.
   http://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf
@@ -45,12 +49,19 @@ The GTFS/NVBW Stops comparison supports three official stop sources for comparis
 
 ### Compare DELFI eV stops to OSM
 ```sh
-> python3 compare_stops.py -o data/germany-latest.osm.pbf -g data/gtfs-germany.zip -s data/zhv.csv -p DELFI
+> python3 compare_stops.py -o data/germany-latest.osm.pbf -g data/gtfs-germany.zip -s data/zhv.csv -p DELFI -d out/stops.db
 ```
+
+or, to just re-run the matching without reload OSM:
+
+```sh
+> python3 compare_stops.py -g data/gtfs-germany.zip -s data/zhv.csv -p DELFI -d out/stops.db
+```
+
 
 ### Compare NVBW stops to OSM
 ```sh
-> python3 compare_stops.py -o data/baden-wuerttemberg-latest.osm.pbf -g data/gtfs-bw.zip -s data/zhv-bw.csv -d out/stops-bw.db -p NVBW 
+> python3 compare_stops.py -o data/baden-wuerttemberg-latest.osm.pbf -g data/gtfs-bw.zip -s data/zhv-bw.csv -d out/stops-bw.db -p NVBW -l out/matching.nvbw.log
 ```
 
 ### Compare GTFS stops to OSM
@@ -59,6 +70,10 @@ Note, that we currently apply some very NVBW-feed specific processing to these s
 
 ```
 > python3 compare_stops.py -o data/baden-wuerttemberg-latest.osm.pbf -g data/gtfs-bw.zip -d out/stops-bw.db -p GTFS 
+```
+
+```
+> python3 compare_stops.py -o data/baden-wuerttemberg-latest.osm.pbf -g data/gtfs-bw.zip -s data/zhv-bw.csv -d out/stops-bw.db -p NVBW -d out/stops-bw.db
 ```
 
 This script will create a spatialite database, import the official stops and the osm stops, calculate probable match candidates and finally pick the most probable matches.
