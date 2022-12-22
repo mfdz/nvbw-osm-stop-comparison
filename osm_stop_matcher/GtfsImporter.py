@@ -162,8 +162,7 @@ class GtfsStopsImporter():
              JOIN gtfs_trips t ON t.trip_id=st.trip_id
              JOIN gtfs_routes r1 ON r1.route_id=t.route_id
              JOIN gtfs_stops s ON s.stop_id=st.stop_id
-             WHERE st.stop_id like 'de:08%'
-             AND r1.route_short_name != ''
+             WHERE r1.route_short_name != ''
              GROUP BY st.stop_id, r1.route_short_name)
              GROUP BY stop_id""")
 
