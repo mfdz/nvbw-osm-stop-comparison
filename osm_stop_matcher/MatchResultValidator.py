@@ -74,4 +74,5 @@ class MatchResultValidator():
 		self.check_matched('de:14628:3455:0:2', 'n349860405', 'Even if stop_position when exact name match exists, match to platform is preferred')
 		self.check_name('w274101111', 'Waldheim, Niedermarkt')
 		self.check_matched('de:03403:16749', 'n5298104852', 'Stations with no quay but areas should be included in matching')
-		
+		self.check_matched('de:08231:458:0:2', 'n302898863', 'Successor matching probably failed for Humboldtstraße')
+
