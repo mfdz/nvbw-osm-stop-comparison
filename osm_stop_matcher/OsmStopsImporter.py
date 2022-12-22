@@ -267,6 +267,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 
 	def only_keep_more_specific_stops_for_matching(self):
 		# We ignore stop positions on platforms like n4983922907, n4983922908, n4983924926, n4983924928 (9 occ in bw)
+		self.logger.info("Deleting stop_position which are node of a platform")
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE osm_id IN (
 			                	SELECT node_id 
@@ -274,6 +275,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 							  AND public_transport = 'stop_position'""")
 
 		# We only retain halts where no stop in vicinity and with same name exists.
+		self.logger.info("Deleting stations/halt if stop or platform with same name is in vicinity")
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE osm_id IN (
 								SELECT h.osm_id 
@@ -285,7 +287,8 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND s.lat BETWEEN h.lat-0.01 AND h.lat+0.01 
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
 
-		# We delete PTv1 tram_stops (often tagged in center of tram_stops) if there is at least one equally names stop_positiono in the vicinity.
+		# We delete PTv1 tram_stops (often tagged in center of tram_stops) if there is at least one identically named stop_position in the vicinity.
+		self.logger.info("Deleting tram_stops, if stop_position with same name is in vicinity")
 		self.db.execute("""DELETE FROM osm_stops 
 							WHERE osm_id IN (
 								SELECT h.osm_id
@@ -302,6 +305,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
 
 		# We delete stop_positions for buses if there is a platform with the same name in the vicinity.
+		self.logger.info("Deleting stop_positions for buses, if there is a platform with the same name in the vicinity.")
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE osm_id IN (
 								SELECT h.osm_id 
@@ -315,6 +319,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
 
 		# We delete stop_positions for buses if there is a platform with the same IFOPT in the vicinity.
+		self.logger.info("Deleting stop_positions for buses, if there is a platform with the same IFOPT in the vicinity.")
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE osm_id IN (
 								SELECT h.osm_id
@@ -329,6 +334,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND s.lon BETWEEN h.lon-0.01 AND h.lon+0.01)""")
 
 		# We delete platforms for trains/lightrails/trams if there is a stop_position with trains/lightrails in the vicinity.
+		self.logger.info("Deleting platforms for rains/lightrails/trams, if there is a stop_position with trains/lightrails in the vicinity.")
 		self.db.execute("""DELETE FROM osm_stops 
 			                WHERE osm_id IN (
 								SELECT h.osm_id 
@@ -343,11 +349,13 @@ class OsmStopsImporter(osmium.SimpleHandler):
 
 		# We delete platforms which have already a bus_stop node, which we assign higher priority 
 		# (thinking of a bus_station where multiple bus_stops may be assigned to a single platform..)  
+		self.logger.info("Deleting platforms which have already a bus_stop node")
 		self.db.execute("""DELETE FROM osm_stops WHERE osm_id IN (
 								SELECT way_id FROM platform_nodes p, osm_stops b 
 								 WHERE p.node_id=b.osm_id)""")
 
 		# We delete bus stop_positions from stop_areas, where there are also platforms with mdoe bus
+		self.logger.info("OSM: Deleting stop_positions from stop_areas, where there are also platforms with mdoe bus")
 		self.db.execute("""DELETE FROM osm_stops AS d 
 			                WHERE d.mode = 'bus' AND d.type='stop' AND d.osm_id IN (
 			                	SELECT s.osm_id 
@@ -357,6 +365,8 @@ class OsmStopsImporter(osmium.SimpleHandler):
 								   AND ms.stop_area_id = mp.stop_area_id)""")
 
 		# We delete bus stop_positions where there are bus platforms nearby https://github.com/mfdz/nvbw-osm-stop-comparison/issues/4
+		self.logger.info("OSM: Deleting stop_positions where there are bus platforms")
+		# TODO: Takes 30 minutes, EXPLAIN QUERY PLAN
 		self.db.execute("""DELETE FROM osm_stops AS d 
 			                WHERE d.osm_id IN 
 			                (SELECT a.osm_id
@@ -431,6 +441,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			  WHERE o.osm_id=p.node_id AND pw.osm_id = p.way_id)
 			WHERE o.name IS NULL""")
 		self.db.commit()
+		self.logger.info("OSM: Updated empty stop names from platform names")
 
 		cur = self.db.execute("""SELECT osm_id FROM osm_stops WHERE name IS NULL""")
 		stops = cur.fetchall()
@@ -442,6 +453,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		# Note: we don't set empty_name, as we assume inheriting the name from stop_area should be good practice		
 		self.db.executemany("""UPDATE osm_stops SET name =? WHERE osm_id=?""", rows)
 		self.db.commit()
+		self.logger.info("OSM: Updated empty stop names inherited from stop_areas")
 
 		self.db.execute("""UPDATE osm_stops AS o SET empty_name=1, name = 
 			(SELECT a.name FROM osm_stops a WHERE a.mode='bus' AND a.public_transport='stop_position' 
@@ -450,6 +462,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			   AND o.type='platform')
 			WHERE o.name IS NULL""")
 		self.db.commit()
+		self.logger.info("OSM: Updated empty stop names from stop_position close by")
 
 	def add_match_state(self):
 		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN match_state TEXT""")
