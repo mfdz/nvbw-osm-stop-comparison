@@ -1,11 +1,49 @@
 import logging
+from osm_stop_matcher.util import execute_and_ignore_error_if_exists, create_sequence, nextval
 
 class StatisticsUpdater():
+
+	MATCH_STATE_PER_REGION_QUERY = """
+        INSERT INTO match_stats(run_id, district, key, value)
+        SELECT ? ,substr(globaleID, 0, instr(substr(globaleID||':',4), ':')+3) district, match_state, count(*) value
+           FROM haltestellen_unified h
+         OUTER LEFT JOIN MATCHES m ON m.ifopt_id = h.globaleId
+         GROUP BY substr(globaleID, 0, instr(substr(globaleID||':',4), ':')+3), match_state
+        """
+
 	def __init__(self, db):
 		self.db = db
 		self.logger = logging.getLogger('osm_stop_matcher.StatisticsUpdater')
 
-	def update_match_statistics(self):
+	def update_match_statistics(self, metadata):
+		self.create_stats_tables_if_not_existant()
+		run_id = self.retrive_new_run_id()
+		self.store_metadata(run_id, metadata)
+		self.update_match_states()
+		self.persists_stats(run_id)
+
+	def create_stats_tables_if_not_existant(self):
+		execute_and_ignore_error_if_exists(self.db, "CREATE TABLE match_meta_data (run_id INTEGER, key TEXT, value TEXT)")
+		execute_and_ignore_error_if_exists(self.db, "CREATE TABLE match_stats (run_id INTEGER, district TEXT, key TEXT, value INTEGER)")
+		create_sequence(self.db, 'match_runs_seq')
+		
+		self.db.commit()
+
+	def retrive_new_run_id(self):
+		return nextval(self.db, 'match_runs_seq')
+
+	def store_metadata(self, run_id, metadata):
+		
+		for key in metadata:
+			self.db.execute("INSERT INTO match_meta_data VALUES(?, ?, ?)", (run_id, key, str(metadata[key])))
+		self.db.execute("INSERT INTO match_meta_data SELECT ?, key, value FROM match_meta_data WHERE run_id=? AND key NOT IN (SELECT key FROM match_meta_data WHERE run_id=?)", (run_id, run_id-1, run_id))
+		self.db.commit()
+
+	def persists_stats(self, run_id):
+		self.db.execute(self.MATCH_STATE_PER_REGION_QUERY, (run_id,))
+		self.db.commit()
+
+	def update_match_states(self):
 		self.logger.info('Update statistics')
 		self.db.execute("""UPDATE haltestellen_unified 
 			                  SET match_state='MATCHED' 
