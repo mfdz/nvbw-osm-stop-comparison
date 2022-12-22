@@ -138,10 +138,10 @@ class GtfsStopsImporter():
         cur.execute("CREATE table tmp_stop_times AS SELECT stop_id, min(trip_id) trip_id FROM gtfs_stop_times GROUP BY stop_id")
         cur.execute("CREATE INDEX tst on tmp_stop_times(stop_id)")
         query = """UPDATE haltestellen_unified SET mode=
-        (SELECT CASE WHEN r.route_type in ('0', '1') THEN 'light_rail' 
-                     WHEN r.route_type in ('2', '101', '102','103','106','109') THEN 'train' 
-                     WHEN r.route_type in ('3') THEN 'bus'
-                     WHEN r.route_type in ('4') THEN 'ferry'
+        (SELECT CASE WHEN r.route_type in ('0', '1', '400','900') THEN 'light_rail' 
+                     WHEN r.route_type in ('2', '100', '101', '102','103','106','109') THEN 'train' 
+                     WHEN r.route_type in ('3', '700') THEN 'bus'
+                     WHEN r.route_type in ('4','1000') THEN 'ferry'
                      WHEN r.route_type in ('5') THEN 'funicular'
                      ELSE NULL END
                      FROM tmp_stop_times st
