@@ -65,6 +65,8 @@ class StatisticsUpdater():
 							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH' 
 							WHERE globaleID NOT IN (SELECT ifopt_id FROM matches);""")
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_AND_SEEMS_UNSERVED' 
+							WHERE match_state LIKE 'NO_MATCH%' AND linien IS NULL""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_BUT_OTHER_PLATFORM_MATCHED' 
 							WHERE match_state='NO_MATCH' AND PARENT IN (SELECT h.parent FROM matches m, haltestellen_unified h WHERE m.ifopt_id = h.globaleID)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH_NO_IFOPT' 
