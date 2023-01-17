@@ -109,12 +109,12 @@ Der offizielle Halt konnte, obwohl er laut GTFS bedient wird, keinem OSM-Stop zu
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
 
-1. Zu große Abweichungen zwischen OSM und offiziellen Daten in mindestens einem der folgenden Kriterien: Distanz, Name, bediente Verkehrsträger, Gleis-/Steig-Numme, Folgehalte.
+1. Zu große Abweichungen zwischen OSM und offiziellen Daten in mindestens einem der folgenden Kriterien: Distanz (z.B. https://github.com/mfdz/GTFS-Issues/issues/117), Name (z.B. https://github.com/mfdz/GTFS-Issues/issues/116), Gleis-/Steig-Nummer, Folgehalte (z.B. https://github.com/mfdz/GTFS-Issues/issues/122), bediente Verkehrsträger (z.B. https://github.com/mfdz/GTFS-Issues/issues/124).
 2. Halt ist in OSM nicht erfasst, z.B. weil er vor Ort nicht als Halt erkennbar ist (virtueller Halt)
 
 #### Was ist zu tun?
 1. Falls das OSM-Pedant in OSM erfasst ist, ist sollte geprüft werden, welche der beiden Datenquellen zu korrigieren ist. Erfolgte kürzliche eine Änderung in einer der beiden Quellen, ist dies ein Indiz für eine Verlegung/Umbenennung oder ähnliches, die im anderen Datensatz noch nicht erfasst wurde. Hilfreich bei der Beurteilung wäre eine Veröffentlichung des Datums der letzten Veränderung (siehe https://github.com/mfdz/zhv-issues/issues/11)
-2. Falls der Halt tatsächlich vor Ort oder per Luftbild als Halt erkennbar ist, sollte er erfasst werden. Virtuelle oder sehr kurzzeitige, temporäre Halte sollten aus unserer Sicht nicht in OSM erfasst werden. Es wäre sehr wünschenswert, dass dieser Haltestellen-Typ im zHV exlpizit ausgewiesen wird (siehe https://github.com/mfdz/zhv-issues/issues/15)
+2. Falls der Halt tatsächlich vor Ort oder per Luftbild als Halt erkennbar ist, sollte er erfasst werden. Virtuelle oder sehr kurzzeitige, temporäre Halte sollten aus unserer Sicht nicht in OSM erfasst werden. Es wäre sehr wünschenswert, dass dieser Haltestellen-Typ im zHV explizit ausgewiesen wird (siehe https://github.com/mfdz/zhv-issues/issues/15)
 
 ### NO_MATCH_AND_SEEMS_UNSERVED
 #### Bedeutung
