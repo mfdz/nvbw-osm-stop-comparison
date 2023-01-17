@@ -39,7 +39,7 @@ def backup_table_if_exists(db, table, backup_table):
 		db.execute("""CREATE TABLE {} AS
 			SELECT * FROM {}""".format(backup_table, table))
 	except:
-		logger.info('Could not backup table %s'.format(table))
+		logger.info('Could not backup table %s', table)
 		pass
 
 def xstr(str):
