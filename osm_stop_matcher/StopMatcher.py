@@ -151,7 +151,8 @@ class StopMatcher():
 		if not name:
 			return name
 		normalized_name = re.sub("\([\w\. ]*\)", '', name)
-		normalized_name = re.sub("Bahnhof$|Bhf$|Bf$|Ort$", '', normalized_name)
+		normalized_name = re.sub("Bahnhof$|Bhf$|Bf$", 'Bf', normalized_name)
+		normalized_name = re.sub("Ort$", '', normalized_name)
 		normalized_name = re.sub("trasse$", 'tr', normalized_name)
 		return normalized_name
 
