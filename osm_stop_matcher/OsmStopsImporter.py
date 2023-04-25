@@ -388,16 +388,29 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.execute("""CREATE TABLE PREDECESSOR_NAME AS 
 			SELECT succ_id osm_id, group_concat(name,'/') pred_name FROM (
 			  SELECT s.succ_id, o.name
-			  FROM successor s, osm_stops o
-			  WHERE s.pred_id = o.osm_id AND o.name IS NOT NULL
-			  GROUP BY s.succ_id, o.name)
+			    FROM successor s, osm_stops o
+			   WHERE s.pred_id = o.osm_id AND o.name IS NOT NULL
+			   UNION
+			  SELECT bus_stop.osm_id, o.name
+			    FROM successor s
+			    JOIN osm_stops o ON s.pred_id = o.osm_id
+			    JOIN platform_nodes pn ON s.succ_id = pn.way_id
+			    JOIN osm_stops bus_stop ON bus_stop.osm_id = pn.node_id 
+			   WHERE o.name IS NOT NULL
+			   )
 			GROUP BY succ_id""")
 		self.db.execute("""CREATE TABLE SUCCESSOR_NAME AS
 			SELECT pred_id osm_id, group_concat(name,'/') succ_name FROM (
 			  SELECT s.pred_id, o.name
-			  FROM successor s, osm_stops o
-			  WHERE s.succ_id = o.osm_id AND o.name IS NOT NULL
-			  GROUP BY s.pred_id, o.name)
+			    FROM successor s, osm_stops o
+			   WHERE s.succ_id = o.osm_id AND o.name IS NOT NULL
+			   UNION
+			  SELECT bus_stop.osm_id, o.name
+			    FROM successor s
+			    JOIN osm_stops o ON s.succ_id = o.osm_id
+			    JOIN platform_nodes pn ON s.pred_id = pn.way_id
+			    JOIN osm_stops bus_stop ON bus_stop.osm_id = pn.node_id 
+			   WHERE o.name IS NOT NULL)
 			GROUP BY pred_id""")
 		self.db.execute("CREATE INDEX PRED_NAME_INDEX on PREDECESSOR_NAME(osm_id)")
 		self.db.execute("CREATE INDEX SUCC_NAME_INDEX on SUCCESSOR_NAME(osm_id)")
