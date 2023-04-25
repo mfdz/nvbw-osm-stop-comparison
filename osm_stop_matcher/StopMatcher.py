@@ -124,7 +124,11 @@ class StopMatcher():
 		if (candidate["mode"] == stop["mode"] or
 			candidate["mode"] == 'trainish' and stop["mode"] in ['train', 'light_rail']):
 			return 1
-		elif not candidate["mode"] or not stop["mode"]:
+		elif not stop["mode"]:
+			# official stop not served, will result in greater malus
+			return config.UNSERVED_STOP_RATING
+		elif not candidate["mode"]:
+			# than OSM mode unknown
 			return config.UNKNOWN_MODE_RATING
 		else:
 			return 0
