@@ -141,6 +141,9 @@ class StopMatcher():
 
 		if (ifopt_platform == None or ifopt_platform=='') and (candidate_platform == None or candidate_platform == ''):
 			return 0.9
+		elif not (ifopt_platform == None or ifopt_platform=='') and (candidate_platform == None or candidate_platform == ''):
+			# usually, platform should be tagged in OSM, but especially for bus quais, that might not be the case, so just give small discount
+			return 0.85
 		elif ifopt_platform == str(candidate_platform):
 			return 1.0
 		else:
