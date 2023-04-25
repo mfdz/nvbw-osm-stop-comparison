@@ -11,10 +11,7 @@ from osm_stop_matcher.util import  drop_table_if_exists, backup_table_if_exists
 from . import config
 
 class StopMatcher():
-	MINIMUM_SUCCESSOR_SIMILARITY = 0.6
-	MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE = 0.11
 	
-	DIRECTION_PREFIX_PATTERN = '(.*)(eRtg|Ri |>|Ri\.|Rtg|Richt |Fahrtrichtung|Ri-|Ri:|Richtung|Richtg\.|FR )(.*)'
 	STOPS_SEPARATOR = '/'
 	
 	official_matches = {}
@@ -92,13 +89,14 @@ class StopMatcher():
 
 		return best_value
 
-	def rank_successor_matching(self, stop, osm_stop):
+	# TODO all rate methods should be move to proper classes to allow replacing etc.
+	def rate_successor_matching(self, stop, osm_stop):
 		richtung = stop["Name_Steig"]
 		ortsteil = stop['Ortsteil']
 		gemeinde = stop['Gemeinde']
 
 		if richtung:
-			match = re.match(self.DIRECTION_PREFIX_PATTERN, richtung)
+			match = re.match(config.DIRECTION_PREFIX_PATTERN, richtung)
 			if match:
 				richtung = match.group(3).strip()
 				richtung = self.normalize_direction(richtung, ortsteil, gemeinde)
@@ -109,9 +107,9 @@ class StopMatcher():
 				similarity_next = self.compare_stop_names(richtung, next_stops)
 				similarity_prev = self.compare_stop_names(richtung, prev_stops)
 				self.logger.info("Successor ranking for %s (%s, %s): next %s (%.2f) prev %s (%.2f)", richtung, ortsteil, gemeinde, next_stops, similarity_next, prev_stops, similarity_prev)
-				if similarity_next >= self.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_next - similarity_prev) >= self.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
+				if similarity_next >= config.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_next - similarity_prev) >= config.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
 					return 1
-				elif similarity_prev >= self.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_prev - similarity_next) >= self.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
+				elif similarity_prev >= config.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_prev - similarity_next) >= config.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
 					return -1
 				else:
 					return 0
@@ -122,7 +120,7 @@ class StopMatcher():
 		dir = dir.replace(gemeinde+' ', '') if gemeinde else dir
 		return dir.replace('trasse', 'tr').replace(',', ' ').replace('-', ' ').strip()
 
-	def rank_mode(self, stop, candidate):
+	def rate_mode(self, stop, candidate):
 		if (candidate["mode"] == stop["mode"] or
 			candidate["mode"] == 'trainish' and stop["mode"] in ['train', 'light_rail']):
 			return 1
@@ -135,7 +133,7 @@ class StopMatcher():
 		else:
 			return 0
 
-	def rank_platform(self, stop, candidate):
+	def rate_platform(self, stop, candidate):
 		ifopt_platform = stop["platform_code"]
 		candidate_platform = candidate["assumed_platform"]
 
@@ -166,24 +164,24 @@ class StopMatcher():
 		name_distance_long_name = ngram.NGram.compare(name_long, osm_name, N=1)
 		if not name_short and not name_long:
 			self.logger.info("Stop %s has no name. Use fix name_distance", stop["globaleID"])
-			name_distance_short_name = self.MINIMUM_NAME_EQUIVALENCE
-			name_distance_long_name = self.MINIMUM_NAME_EQUIVALENCE
+			name_distance_short_name = config.MINIMUM_NAME_SIMILARITY
+			name_distance_long_name = config.MINIMUM_NAME_SIMILARITY
 		elif not osm_name:
 			self.logger.info("OSM stop %s has no name. Use fix name_distance", candidate["id"])
-			name_distance_short_name = self.MINIMUM_NAME_EQUIVALENCE
-			name_distance_long_name = self.MINIMUM_NAME_EQUIVALENCE
+			name_distance_short_name = config.MINIMUM_NAME_SIMILARITY
+			name_distance_long_name = config.MINIMUM_NAME_SIMILARITY
 		
 		if name_distance_short_name > name_distance_long_name:
 			return (name_distance_short_name, stop["Haltestelle"])
 		else:
 			return (name_distance_long_name, stop["Haltestelle_lang"])
 
-	def rank_candidate(self, stop, candidate, distance):
+	def rate_candidate(self, stop, candidate, distance):
 		osm_name = candidate["name"]
 		(name_distance, matched_name) = self.rate_name_equivalence(stop, candidate)
-		mode_rating = self.rank_mode(stop, candidate)
-		successor_rating = self.rank_successor_matching(stop, candidate)
-		platform_rating = self.rank_platform(stop, candidate)
+		mode_rating = self.rate_mode(stop, candidate)
+		successor_rating = self.rate_successor_matching(stop, candidate)
+		platform_rating = self.rate_platform(stop, candidate)
 
 		if candidate["ref"] == stop["globaleID"]:
 			# TODO: We currently ignore, that OSM IFOPTS are currently duplicated for some stops...
@@ -198,7 +196,7 @@ class StopMatcher():
 		self.logger.debug("rating: %s name_distance: %s matched_name: %s osm_name: %s platform_rating: %s successor_rating: %s, mode_rating: %s", rating, name_distance, matched_name, osm_name, platform_rating, successor_rating, mode_rating)
 		return (rating, name_distance, matched_name, osm_name, platform_rating, successor_rating, mode_rating)
 
-	def rank_candidates(self, stop, stop_id, coords, candidates):
+	def rate_candidates(self, stop, stop_id, coords, candidates):
 		matches = []
 		last_name_distance = 0
 		for candidate in candidates:
@@ -215,7 +213,7 @@ class StopMatcher():
 			if candidate["mode"] == 'bus' and stop["mode"] in ["tram", "light_rail", "train"]:
 				continue
 			
-			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating) = self.rank_candidate(stop, candidate, distance)
+			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating) = self.rate_candidate(stop, candidate, distance)
 			#if last_name_distance > name_distance:
 			if last_name_distance > name_distance and name_distance < config.MINIMUM_NAME_SIMILARITY:
 				self.logger.info("Ignore {} ({})  {} ({}) with distance {} and name similarity {}. Platform matches? {} as name distance low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
@@ -238,7 +236,7 @@ class StopMatcher():
 				 self.osm_matches[osm_id] = []
 			self.osm_matches[osm_id].append(match)
 
-	def is_bus_station(self, stop):
+	def is_bus_or_train_station(self, stop):
 		name = stop["Haltestelle"]  if stop["Haltestelle"] else stop["Haltestelle_lang"] 
 		return name and ('ahnhof' in name
 			or 'ZOB' in name
@@ -247,12 +245,13 @@ class StopMatcher():
 			or ' Bf' in name )
 
 	def match_stop(self, stop, stop_id, coords, row):
-		no_of_candidates = 15 if self.is_bus_station(stop) else 10
+		max_no_of_candidates = config.MAX_EVALUATED_CANDIDATES_BUS_STATIONS if self.is_bus_or_train_station(stop) else config.MAX_EVALUATED_CANDIDATES_OTHER_STOPS
 
-		candidates = list(self.osm_stops.nearest(coords, no_of_candidates, objects='raw'))
-		matches = self.rank_candidates(stop, stop_id, coords, candidates)
-		if matches:	
-			self.store_matches(stop, stop_id, matches)
+		candidates = list(self.osm_stops.nearest(coords, max_no_of_candidates, objects='raw'))
+		# TODO rename rated_candidates, self.rate_candidates
+		rated_candidates = self.rate_candidates(stop, stop_id, coords, candidates)
+		if rated_candidates:	
+			self.store_matches(stop, stop_id, rated_candidates)
 	
 	def export_match_candidates(self):
 		drop_table_if_exists(self.db, "candidates")
