@@ -7,6 +7,24 @@ from .util import drop_table_if_exists
 def get_rating(row):
 	return row['rating']
 
+def get_total_rating_prod(matches, agency_stops_cnt):
+	# All agency stops are matched, calculated rating for this match assembly
+	unmatched_cnt = agency_stops_cnt - len(matches)
+	# Rank all unmatched with the mininum acceptance value
+	product_of_unmatched = pow(config.RATING_BELOW_CANDIDATES_ARE_IGNORED, unmatched_cnt)
+	product_of_matches_rating = math.prod(map(lambda m: m['rating'], matches))
+	root = pow(product_of_matches_rating*product_of_unmatched, 1.0/agency_stops_cnt)
+	return root
+
+def get_total_rating_sum(matches, agency_stops_cnt):
+	# All agency stops are matched, calculated rating for this match assembly
+	unmatched_cnt = agency_stops_cnt - len(matches)
+	# Rank all unmatched with the mininum acceptance value
+	product_of_unmatched = config.RATING_BELOW_CANDIDATES_ARE_IGNORED * unmatched_cnt
+	product_of_matches_rating = math.fsum(map(lambda m: m['rating'], matches))
+	root = (product_of_matches_rating+product_of_unmatched)/agency_stops_cnt
+	return root
+
 def best_unique_matches(candidates, agency_stops = [], matches = [], matched_index = 0, already_matched_osm = []):
 	if (len(agency_stops) == 0 ):
 		agency_stops_set = set()
@@ -37,13 +55,7 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 					best_matches = current_matches
 		return (best_rating, best_matches)
 	else:
-		# All agency stops are matched, calculated rating for this match assembly
-		unmatched_cnt = agency_stops_cnt - len(matches)
-		# Rank all unmatched with the mininum acceptance value
-		product_of_unmatched = pow(config.RATING_BELOW_CANDIDATES_ARE_IGNORED, unmatched_cnt)
-		product_of_matches_rating = math.prod(map(lambda m: m['rating'], matches))
-		root = pow(product_of_matches_rating*product_of_unmatched, 1.0/agency_stops_cnt)
-		return (root, matches)
+		return (get_total_rating_sum(matches, agency_stops_cnt), matches)
 
 class MatchPicker():
 
