@@ -114,7 +114,7 @@ class StopMatcher():
 				elif similarity_prev >= self.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_prev - similarity_next) >= self.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
 					return -1
 				else:
-		return 0
+					return 0
 		return -0.5
 
 	def normalize_direction(self, dir, ortsteil, gemeinde):
@@ -149,20 +149,38 @@ class StopMatcher():
 		else:
 			return 0.0
 		
+	def normalize_name(self, name):
+		if not name:
+			return name
+		normalized_name = re.sub("\([\w\. ]*\)", '', name)
+		normalized_name = re.sub("Bahnhof$|Bhf$|Bf$|Ort$", '', normalized_name)
+		normalized_name = re.sub("trasse$", 'tr', normalized_name)
+		return normalized_name
+
+	def rate_name_equivalence(self, stop, candidate):
+		osm_name = self.normalize_name(candidate["name"])
+		name_short = self.normalize_name(stop["Haltestelle"])
+		name_long = self.normalize_name(stop["Haltestelle_lang"])
+
+		name_distance_short_name = ngram.NGram.compare(name_short, osm_name, N=1)
+		name_distance_long_name = ngram.NGram.compare(name_long, osm_name, N=1)
+		if not name_short and not name_long:
+			self.logger.info("Stop %s has no name. Use fix name_distance", stop["globaleID"])
+			name_distance_short_name = self.MINIMUM_NAME_EQUIVALENCE
+			name_distance_long_name = self.MINIMUM_NAME_EQUIVALENCE
+		elif not osm_name:
+			self.logger.info("OSM stop %s has no name. Use fix name_distance", candidate["id"])
+			name_distance_short_name = self.MINIMUM_NAME_EQUIVALENCE
+			name_distance_long_name = self.MINIMUM_NAME_EQUIVALENCE
+		
+		if name_distance_short_name > name_distance_long_name:
+			return (name_distance_short_name, stop["Haltestelle"])
+		else:
+			return (name_distance_long_name, stop["Haltestelle_lang"])
+
 	def rank_candidate(self, stop, candidate, distance):
 		osm_name = candidate["name"]
-		name_distance_short_name = ngram.NGram.compare(stop["Haltestelle"],osm_name,N=1)
-		name_distance_long_name = ngram.NGram.compare(stop["Haltestelle_lang"],osm_name,N=1)
-		if (stop["Haltestelle"] == '' or stop["Haltestelle"] == None) and (stop["Haltestelle_lang"] == '' or stop["Haltestelle_lang"] == None):
-			self.logger.info("Stop %s has no name. Use fix name_distance", stop["globaleID"])
-			name_distance_short_name = 0.3
-		elif osm_name == '' or osm_name == None:
-			self.logger.info("OSM stop %s has no name. Use fix name_distance", candidate["id"])
-			name_distance_short_name = 0.3
-			name_distance_long_name = 0.3
-		
-		(short_name_matched, matched_name) = (False, stop["Haltestelle_lang"]) if name_distance_short_name < name_distance_long_name else (True, stop["Haltestelle"])
-		name_distance = max(name_distance_short_name, name_distance_long_name)
+		(name_distance, matched_name) = self.rate_name_equivalence(stop, candidate)
 		mode_rating = self.rank_mode(stop, candidate)
 		successor_rating = self.rank_successor_matching(stop, candidate)
 		platform_rating = self.rank_platform(stop, candidate)
