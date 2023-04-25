@@ -161,6 +161,12 @@ class StopMatcher():
 		name_short = self.normalize_name(stop["Haltestelle"])
 		name_long = self.normalize_name(stop["Haltestelle_lang"])
 
+		if osm_name and osm_name in name_short:
+			# If full (normalized) osm_name is part of the official stop_name,
+			# we deem this a full match. I.E. as official stop names often include 
+			# additional city/settelment names
+			return (1.0, stop["Haltestelle"])
+
 		name_distance_short_name = ngram.NGram.compare(name_short, osm_name, N=1)
 		name_distance_long_name = ngram.NGram.compare(name_long, osm_name, N=1)
 		if not name_short and not name_long:
