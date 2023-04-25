@@ -113,7 +113,9 @@ class StopMatcher():
 					return 1
 				elif similarity_prev >= self.MINIMUM_SUCCESSOR_SIMILARITY and (similarity_prev - similarity_next) >= self.MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE:
 					return -1
+				else:
 		return 0
+		return -0.5
 
 	def normalize_direction(self, dir, ortsteil, gemeinde):
 		dir = dir.replace(ortsteil+' ', '') if ortsteil else dir
