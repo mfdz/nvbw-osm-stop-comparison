@@ -12,6 +12,7 @@ from contextlib import closing
 logger = logging.getLogger('GtfsStopsImporter')
 
 class GtfsStopsImporter():
+
     def __init__(self, connection):
         self.db = connection
         self.encoding = 'utf-8-sig'
@@ -45,7 +46,7 @@ class GtfsStopsImporter():
         reader = csv.DictReader(io.TextIOWrapper(stops_file, self.encoding))
         to_db = [(i['stop_id'], i['stop_name'], i['stop_lat']
             , i['stop_lon'], i['location_type'], get_parent_station(i['stop_id']),
-            i['platform_code']) for i in reader]
+            i.get('platform_code')) for i in reader]
 
         cur.executemany("INSERT INTO gtfs_stops (stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station,platform_code) VALUES (?, ?, ?, ?, ?, ?, ?);", to_db)
         self.db.commit()
