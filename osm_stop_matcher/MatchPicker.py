@@ -1,5 +1,9 @@
 import logging
 import math
+import argparse
+import spatialite
+import sqlite3
+import sys
 
 from . import config
 from .util import drop_table_if_exists
@@ -57,6 +61,12 @@ def best_unique_matches(candidates, agency_stops = [], matches = [], matched_ind
 	else:
 		return (get_total_rating_sum(matches, agency_stops_cnt), matches)
 
+def parent_station_id(ifopt_id):
+	return ifopt_id[:ifopt_id.index(':',9)]
+
+def is_quai(ifopt_id):
+	return ifopt_id.find(':',9) > -1
+
 class MatchPicker():
 
 	def __init__(self, db):
@@ -64,36 +74,51 @@ class MatchPicker():
 		self.logger = logging.getLogger('osm_stop_matcher.MatchPicker')
 
 
-	def pick_matches(self):
+	def pick_matches(self, log_only=False, stop_id_prefix=''):
 		if config.SIMPLE_MATCH_PICKER:
 			return self.simple_pick_matches()
 
 		cur = self.db.cursor()
-		cur.execute("DELETE FROM matches")
-		cur.execute("SELECT * FROM candidates WHERE rating >= ? ORDER BY ifopt_id", [config.RATING_BELOW_CANDIDATES_ARE_IGNORED])
+		
+		if not log_only:
+			cur.execute("DELETE FROM matches")
+
+		cur.execute("SELECT * FROM candidates WHERE rating >= ? AND ifopt_id like ? ORDER BY ifopt_id", [config.RATING_BELOW_CANDIDATES_ARE_IGNORED, stop_id_prefix+'%'])
 		rows = cur.fetchall()
+		self.logger.info("Picking matches from %d candidates", len(rows))
 		matches = []
 		idx = 0
 		ifopt_id_col = 0
 		matchset_count = 0	
 		while idx < len(rows):
+
 			first = True
 			subset_size = 0
 			matchset_count += 1
 			candidates = {}
-			# Collect all matches for same stop
-			while idx < len(rows) and (first or (rows[idx-1][ifopt_id_col].find(':',9) > -1  and rows[idx][ifopt_id_col].find(':',9) > -1 and rows[idx][ifopt_id_col][:rows[idx][ifopt_id_col].index(':',9)] == rows[idx-1][ifopt_id_col][:rows[idx-1][ifopt_id_col].index(':',9)])):
+			# Collect all matches for same parent stop (assuming their stop_id have same leading <country>:<district>:<parentid> )
+			while idx < len(rows) and (first or (is_quai(rows[idx-1][ifopt_id_col]) and is_quai(rows[idx][ifopt_id_col]) and parent_station_id(rows[idx][ifopt_id_col]) == parent_station_id(rows[idx-1][ifopt_id_col]))):
 				first = False
+				ifopt_id = rows[idx]["ifopt_id"]
 
-				if not rows[idx]["ifopt_id"] in candidates:
-					candidates[rows[idx]["ifopt_id"]] = []
-				candidates[rows[idx]["ifopt_id"]].append(rows[idx])
+				if not ifopt_id in candidates:
+					candidates[ifopt_id] = []
+				candidates[ifopt_id].append(rows[idx])
+
+				if log_only:
+					self.logger.debug("Evaluate %s, %s, %s", rows[idx]["ifopt_id"], rows[idx]["osm_id"], rows[idx]["rating"])
+
 				subset_size += 1
 				idx += 1
+
 			if subset_size < 50:
 				# pick best matches
 				(rating, matches) = best_unique_matches(candidates)
-				self.import_matches(matches)
+				if not log_only:
+					self.import_matches(matches)
+				else:
+					for match in matches:
+						self.logger.debug("Matched %s, %s, %s", match["ifopt_id"], match["osm_id"], match["rating"])
 			else:
 				self.logger.debug('Matching bereiche as subset_size too large: %s for %s', subset_size, candidates)
 				bereiche = {}
@@ -104,26 +129,31 @@ class MatchPicker():
 					bereiche[bereich_id][ifopt_id] = candidates[ifopt_id]
 				for bereich_id in bereiche:
 					(rating, matches) = best_unique_matches(bereiche[bereich_id])
-					self.import_matches(matches)
+					if not log_only:
+						self.import_matches(matches)
+					else:
+						self.logger.debug("Matched %s", matches)
 
 			if matchset_count % 2500 == 0:
 				self.logger.info('Matched %s stops...', matchset_count)
 
-		self.logger.info('Imported matches')
-		self.db.execute("""DELETE FROM matches 
-			                WHERE (ifopt_id, osm_id) IN (
-			                 SELECT c2.ifopt_id, c2.osm_id
-			                   FROM matches c1, matches c2 
-			                  WHERE c1.osm_id = c2.osm_id 
-			                    AND c2.rating < c1.rating)""")
-		self.logger.info('Deleted worse matches if one osm_stop is associated with multiple agency stops')
-		self.db.execute("""DELETE FROM matches AS md WHERE (md.ifopt_id, md.osm_id) IN (
-							SELECT mr.ifopt_id, mr.osm_id
-							  FROM matches mr, matches mk 
-							 WHERE mr.ifopt_id=mk.ifopt_id
-							  AND mr.name_distance < mk.name_distance)""")
-		self.logger.info('Deleted matches with worse name_distance if multiple osm_stop match same agency stop')
-		self.db.commit()
+		if not log_only:
+			self.logger.info('Imported matches')
+			self.db.execute("""DELETE FROM matches 
+				                WHERE (ifopt_id, osm_id) IN (
+				                 SELECT c2.ifopt_id, c2.osm_id
+				                   FROM matches c1, matches c2 
+				                  WHERE c1.osm_id = c2.osm_id 
+				                    AND c2.rating < c1.rating)""")
+			self.logger.info('Deleted worse matches if one osm_stop is associated with multiple agency stops')
+			self.db.execute("""DELETE FROM matches AS md WHERE (md.ifopt_id, md.osm_id) IN (
+								SELECT mr.ifopt_id, mr.osm_id
+								  FROM matches mr, matches mk 
+								 WHERE mr.ifopt_id=mk.ifopt_id
+								  AND mr.rating < mk.rating
+								  AND mr.name_distance != mk.name_distance)""")
+			self.logger.info('Deleted matches with worse rating if multiple osm_stop matches same agency stop and name differs. If name is equal, official stop might be not have quaies')
+			self.db.commit()
 
 	def simple_pick_matches(self):
 		self.logger.info('Simple match picking...')
@@ -145,3 +175,24 @@ class MatchPicker():
 		cur = self.db.cursor()
 		cur.executemany("INSERT INTO matches VALUES(?,?,?,?,?,?,?,?,?)", matches)
 		self.db.commit()
+
+# run e.g. via python3 -m log_only -p 'de:08111:2039:' -d out/stops.db
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', handlers=[
+        logging.StreamHandler(sys.stdout)
+    ])
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', dest='db_file', required=False, help='sqlite DB out file', default='out/stops.db')
+    parser.add_argument('-p', dest='prefix', required=False, help='stop prefix', default='')
+    parser.add_argument('-m', dest='mode', required=False, help='mode', default='log_only', choices=['log_only','pick'])
+    
+    args = parser.parse_args()
+    
+    db = spatialite.connect(args.db_file)
+    db.execute("PRAGMA case_sensitive_like=ON")
+    db.row_factory = sqlite3.Row
+
+    MatchPicker(db).pick_matches(mode=="log_only", args.prefix)
+
+    
