@@ -58,6 +58,11 @@ or, to just re-run the matching without reload OSM:
 > python3 compare_stops.py -g data/gtfs-germany.zip -s data/zhv.csv -p DELFI -d out/stops.db
 ```
 
+or, to just re-run the matching without reloading any files, specify mode ( -m ) `match`:
+
+```sh
+> python3 compare_stops.py -m match -p DELFI -d out/stops.db
+```
 
 ### Compare NVBW stops to OSM
 ```sh
