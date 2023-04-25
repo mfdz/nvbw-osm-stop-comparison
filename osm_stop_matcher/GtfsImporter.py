@@ -14,13 +14,13 @@ logger = logging.getLogger('GtfsStopsImporter')
 class GtfsStopsImporter():
     def __init__(self, connection):
         self.db = connection
+        self.encoding = 'utf-8-sig'
         
     def import_routes(self, routes_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_routes")
         cur.execute("CREATE TABLE gtfs_routes (route_id PRIMARY KEY,route_type,route_short_name);")
-
-        reader = csv.DictReader(io.TextIOWrapper(routes_file, 'utf-8'))
+        reader = csv.DictReader(io.TextIOWrapper(routes_file, self.encoding))
         to_db = [(i['route_id'], i['route_type'], i['route_short_name']) for i in reader]
 
         cur.executemany("INSERT INTO gtfs_routes (route_id,route_type,route_short_name) VALUES (?, ?, ?);", to_db)
@@ -31,7 +31,7 @@ class GtfsStopsImporter():
         drop_table_if_exists(self.db, "gtfs_trips")
         cur.execute("CREATE TABLE gtfs_trips (trip_id PRIMARY KEY, route_id);")
 
-        reader = csv.DictReader(io.TextIOWrapper(trips_file, 'utf-8'))
+        reader = csv.DictReader(io.TextIOWrapper(trips_file, self.encoding))
         to_db = [(i['trip_id'], i['route_id']) for i in reader]
 
         cur.executemany("INSERT INTO gtfs_trips (trip_id,route_id) VALUES (?, ?);", to_db)
@@ -42,7 +42,7 @@ class GtfsStopsImporter():
         drop_table_if_exists(self.db, "gtfs_stops")
         cur.execute("CREATE TABLE gtfs_stops (stop_id PRIMARY KEY,stop_name,stop_lat,stop_lon,location_type,parent_station,platform_code);")
 
-        reader = csv.DictReader(io.TextIOWrapper(stops_file, 'utf-8'))
+        reader = csv.DictReader(io.TextIOWrapper(stops_file, self.encoding))
         to_db = [(i['stop_id'], i['stop_name'], i['stop_lat']
             , i['stop_lon'], i['location_type'], get_parent_station(i['stop_id']),
             i['platform_code']) for i in reader]
@@ -81,7 +81,7 @@ class GtfsStopsImporter():
         cur.execute("CREATE TABLE gtfs_stop_times (trip_id,stop_id,stop_sequence);")
         cur.execute("CREATE UNIQUE INDEX gst ON gtfs_stop_times(trip_id,stop_id,stop_sequence);")
 
-        reader = csv.DictReader(io.TextIOWrapper(stop_times_file, 'utf-8'))
+        reader = csv.DictReader(io.TextIOWrapper(stop_times_file, self.encoding))
         to_db = [(i['trip_id'], i['stop_id'], i['stop_sequence']) for i in reader]
 
         cur.executemany("INSERT INTO gtfs_stop_times (trip_id,stop_id,stop_sequence) VALUES (?, ?, ?);", to_db)
