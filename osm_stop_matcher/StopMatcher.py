@@ -8,8 +8,9 @@ from haversine import haversine, Unit
 
 from osm_stop_matcher.util import  drop_table_if_exists, backup_table_if_exists
 
+from . import config
+
 class StopMatcher():
-	UNKNOWN_MODE_RATING = 0.3
 	MINIMUM_SUCCESSOR_SIMILARITY = 0.6
 	MINIMUM_SUCCESSOR_PREDECESSOR_DISTANCE = 0.11
 	
@@ -124,7 +125,7 @@ class StopMatcher():
 			candidate["mode"] == 'trainish' and stop["mode"] in ['train', 'light_rail']):
 			return 1
 		elif not candidate["mode"] or not stop["mode"]:
-			return 0.7
+			return config.UNKNOWN_MODE_RATING
 		else:
 			return 0
 
@@ -177,7 +178,7 @@ class StopMatcher():
 			self.logger.debug('rank %s', candidate)
 			# estimate distance
 			distance = haversine(coords, (candidate["lat"],candidate["lon"]), unit=Unit.METERS)
-			if distance > 400:
+			if distance > config.MAXIMUM_DISTANCE:
 				return matches
 		   
 			# Ignore bahn candidates when looking for bus_stop
@@ -189,7 +190,7 @@ class StopMatcher():
 			
 			(rating, name_distance, matched_name, osm_name, platform_matches, successor_rating, mode_rating) = self.rank_candidate(stop, candidate, distance)
 			#if last_name_distance > name_distance:
-			if last_name_distance > name_distance and name_distance < 0.3:
+			if last_name_distance > name_distance and name_distance < config.MINIMUM_NAME_SIMILARITY:
 				self.logger.info("Ignore {} ({})  {} ({}) with distance {} and name similarity {}. Platform matches? {} as name distance low".format(matched_name,stop_id, osm_name, candidate["id"], distance, name_distance,platform_matches))
 				continue
 			elif rating < 0.001:
