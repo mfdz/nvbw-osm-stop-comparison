@@ -135,7 +135,12 @@ class GtfsStopsImporter():
     def update_mode(self):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "tmp_stop_times")
-        cur.execute("CREATE table tmp_stop_times AS SELECT stop_id, min(trip_id) trip_id FROM gtfs_stop_times GROUP BY stop_id")
+        cur.execute("""CREATE table tmp_stop_times AS SELECT st.stop_id, min(st.trip_id) trip_id
+            FROM gtfs_stop_times st
+            JOIN gtfs_trips t ON t.trip_id=st.trip_id
+            JOIN gtfs_routes r ON r.route_id=t.route_id
+            WHERE r.route_short_name NOT LIKE 'SEV%'
+            GROUP BY stop_id""")
         cur.execute("CREATE INDEX tst on tmp_stop_times(stop_id)")
         query = """UPDATE haltestellen_unified SET mode=
         (SELECT CASE WHEN r.route_type in ('0', '1', '400','900') THEN 'light_rail' 
