@@ -1,7 +1,7 @@
 import argparse
 import csv
 import datetime
-from osm_stop_matcher.util import xstr, drop_table_if_exists
+from osm_stop_matcher.util import xstr, drop_table_if_exists, get_parent_station
 import sqlite3
 import spatialite
 import zipfile
@@ -44,7 +44,7 @@ class GtfsStopsImporter():
 
         reader = csv.DictReader(io.TextIOWrapper(stops_file, 'utf-8'))
         to_db = [(i['stop_id'], i['stop_name'], i['stop_lat']
-            , i['stop_lon'], i['location_type'], i['parent_station'],
+            , i['stop_lon'], i['location_type'], get_parent_station(i['stop_id']),
             i['platform_code']) for i in reader]
 
         cur.executemany("INSERT INTO gtfs_stops (stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station,platform_code) VALUES (?, ?, ?, ?, ?, ?, ?);", to_db)
@@ -61,7 +61,7 @@ class GtfsStopsImporter():
             SElECT '' Landkreis, '' Gemeinde, '' Ortsteil, substr(stop_name, instr(stop_name, ' ')+1) Haltestelle, stop_name Haltestelle_lang, '' HalteBeschreibung, stop_id globaleID, '' HalteTyp, NULL gueltigAb, NULL gueltigBis, cast(stop_lat as real) lat, cast(stop_lon as real) lon, 
              CASE WHEN (LENGTH(stop_id)-LENGTH(REPLACE(stop_id, ':','')))=4 THEN 'Steig' ELSE 'Halt' END Art , 
              platform_code Name_Steig, 
-              NULL mode, NULL parent, NULL match_state, NULL linien, platform_code FROM gtfs_stops
+              NULL mode, parent_station parent, NULL match_state, NULL linien, platform_code FROM gtfs_stops
               where (location_type="0" or location_type="");
             """)
 
@@ -144,14 +144,14 @@ class GtfsStopsImporter():
                 FROM (
                     SELECT st.stop_id, r.route_short_name,
                     CASE WHEN r.route_type in ('0', '1', '400','900') THEN 'light_rail' 
-                     WHEN r.route_type in ('2', '100', '101', '102','103','106','109') THEN 'train' 
-                     WHEN r.route_type in ('3', '700') THEN 'bus'
-                     WHEN r.route_type in ('4','1000') THEN 'ferry'
-                     WHEN r.route_type in ('5') THEN 'funicular'
+                        WHEN r.route_type in ('2', '100', '101', '102','103','106','109') THEN 'train' 
+                        WHEN r.route_type in ('3', '700') THEN 'bus'
+                        WHEN r.route_type in ('4','1000') THEN 'ferry'
+                        WHEN r.route_type in ('5') THEN 'funicular'
                         ELSE NULL END AS mode
                     FROM gtfs_stop_times st
-                     JOIN gtfs_trips t ON t.trip_id=st.trip_id
-                     JOIN gtfs_routes r ON r.route_id=t.route_id
+                    JOIN gtfs_trips t ON t.trip_id=st.trip_id
+                    JOIN gtfs_routes r ON r.route_id=t.route_id
                     WHERE r.route_short_name NOT LIKE 'SEV%'
                     GROUP BY st.stop_id, r.route_type, r.route_short_name
                 ) AS modes_by_route
@@ -164,7 +164,7 @@ class GtfsStopsImporter():
         query = """UPDATE haltestellen_unified SET mode=
         (SELECT mode
             FROM tmp_stop_modes st
-                     WHERE st.stop_id = haltestellen_unified.globaleID)"""
+            WHERE st.stop_id = haltestellen_unified.globaleID)"""
         cur.execute(query)
         drop_table_if_exists(self.db, "tmp_stop_modes")
         self.db.commit()
