@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import re
 
 logger = logging.getLogger('osm_stop_matcher.util')
 
@@ -43,3 +44,6 @@ def backup_table_if_exists(db, table, backup_table):
 
 def xstr(str):
 	return None if '' == str else str
+
+def get_parent_station(ifopt_id):
+	return re.sub(r'^([^:_]+:[^:_]+:[^:_]+)(_[^:]+)?(:.+)?$', r'\1', ifopt_id)
