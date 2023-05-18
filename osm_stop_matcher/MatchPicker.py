@@ -2,6 +2,7 @@ import logging
 import math
 
 from . import config
+from .util import drop_table_if_exists
 
 def get_rating(row):
 	return row['rating']
@@ -52,6 +53,9 @@ class MatchPicker():
 
 
 	def pick_matches(self):
+		if config.SIMPLE_MATCH_PICKER:
+			return self.simple_pick_matches()
+
 		cur = self.db.cursor()
 		cur.execute("DELETE FROM matches")
 		cur.execute("SELECT * FROM candidates WHERE rating >= ? ORDER BY ifopt_id", [config.RATING_BELOW_CANDIDATES_ARE_IGNORED])
@@ -109,6 +113,21 @@ class MatchPicker():
 		self.logger.info('Deleted matches with worse name_distance if multiple osm_stop match same agency stop')
 		self.db.commit()
 
+	def simple_pick_matches(self):
+		self.logger.info('Simple match picking...')
+		cur = self.db.cursor()
+		drop_table_if_exists(self.db, "matches")
+		cur.execute("""CREATE TABLE matches AS
+			SELECT ifopt_id, osm_id, rating, distance, name_distance, platform_matches, successor_rating, mode_rating FROM candidates
+			WHERE rating > 0.99
+			UNION
+			SELECT ifopt_id, osm_id, MAX(rating) rating, distance, name_distance, platform_matches, successor_rating, mode_rating FROM candidates 
+			GROUP BY ifopt_id
+			UNION
+			SELECT ifopt_id, osm_id, MAX(rating) rating, distance, name_distance, platform_matches, successor_rating, mode_rating FROM candidates 
+			GROUP BY osm_id""")
+
+		self.db.commit()
 
 	def import_matches(self, matches):
 		cur = self.db.cursor()
