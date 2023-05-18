@@ -134,27 +134,39 @@ class GtfsStopsImporter():
 
     def update_mode(self):
         cur = self.db.cursor()
-        drop_table_if_exists(self.db, "tmp_stop_times")
-        cur.execute("""CREATE table tmp_stop_times AS SELECT st.stop_id, min(st.trip_id) trip_id
-            FROM gtfs_stop_times st
-            JOIN gtfs_trips t ON t.trip_id=st.trip_id
-            JOIN gtfs_routes r ON r.route_id=t.route_id
-            WHERE r.route_short_name NOT LIKE 'SEV%'
-            GROUP BY stop_id""")
-        cur.execute("CREATE INDEX tst on tmp_stop_times(stop_id)")
-        query = """UPDATE haltestellen_unified SET mode=
-        (SELECT CASE WHEN r.route_type in ('0', '1', '400','900') THEN 'light_rail' 
+        drop_table_if_exists(self.db, "tmp_stop_modes")
+        # when one route_short_name has multiple different modes, use higher valued one (train), since this is usually due to SEV (e.g. RE3 with route_type 3)
+        # when still multiple modes at one stop, leave mode as NULL
+        cur.execute("""CREATE table tmp_stop_modes AS
+            SELECT stop_id, mode
+            FROM (
+                SELECT stop_id, MAX(mode) AS mode, route_short_name
+                FROM (
+                    SELECT st.stop_id, r.route_short_name,
+                    CASE WHEN r.route_type in ('0', '1', '400','900') THEN 'light_rail' 
                      WHEN r.route_type in ('2', '100', '101', '102','103','106','109') THEN 'train' 
                      WHEN r.route_type in ('3', '700') THEN 'bus'
                      WHEN r.route_type in ('4','1000') THEN 'ferry'
                      WHEN r.route_type in ('5') THEN 'funicular'
-                     ELSE NULL END
-                     FROM tmp_stop_times st
+                        ELSE NULL END AS mode
+                    FROM gtfs_stop_times st
                      JOIN gtfs_trips t ON t.trip_id=st.trip_id
                      JOIN gtfs_routes r ON r.route_id=t.route_id
+                    WHERE r.route_short_name NOT LIKE 'SEV%'
+                    GROUP BY st.stop_id, r.route_type, r.route_short_name
+                ) AS modes_by_route
+                GROUP BY stop_id, route_short_name
+            ) AS modes_without_sev
+            GROUP BY stop_id
+            HAVING COUNT(DISTINCT mode) = 1
+            """)
+        cur.execute("CREATE INDEX tst on tmp_stop_modes(stop_id)")
+        query = """UPDATE haltestellen_unified SET mode=
+        (SELECT mode
+            FROM tmp_stop_modes st
                      WHERE st.stop_id = haltestellen_unified.globaleID)"""
         cur.execute(query)
-        drop_table_if_exists(self.db, "tmp_stop_times")
+        drop_table_if_exists(self.db, "tmp_stop_modes")
         self.db.commit()
 
     def update_linien(self):
