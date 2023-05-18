@@ -173,14 +173,18 @@ class GtfsStopsImporter():
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "tmp_stop_routes")
         cur.execute("""CREATE TABLE tmp_stop_routes AS
-            SELECT stop_id, group_concat(route_short_name) route_short_names FROM (
-            SELECT st.stop_id, r1.route_short_name
+            SELECT stop_id, group_concat(CASE
+                WHEN route_type = '101' THEN 'ICE'
+                WHEN route_type = '102' THEN 'ECIC'
+                ELSE route_short_name
+            END) route_short_names FROM (
+            SELECT st.stop_id, r1.route_short_name, r1.route_type
             FROM gtfs_stop_times st
              JOIN gtfs_trips t ON t.trip_id=st.trip_id
              JOIN gtfs_routes r1 ON r1.route_id=t.route_id
              JOIN gtfs_stops s ON s.stop_id=st.stop_id
              WHERE r1.route_short_name != ''
-             GROUP BY st.stop_id, r1.route_short_name)
+             GROUP BY st.stop_id, r1.route_short_name, r1.route_type)
              GROUP BY stop_id""")
 
         cur.execute("CREATE INDEX stop_routes_idx on tmp_stop_routes(stop_id)")
