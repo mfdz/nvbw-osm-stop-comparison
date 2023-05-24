@@ -55,6 +55,7 @@ def main(osmfile, db_file, stops_file, gtfs_file, stopsprovider, logfile):
     elif stopsprovider == 'DELFI': 
         zhv_importer = DelfiStopsImporter(db)
     else:
+        zhv_importer = None
         logger.error("No importer for stopsprovider %s", stopsprovider)
         #return 1
     
