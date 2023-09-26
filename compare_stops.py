@@ -68,6 +68,7 @@ def load_data(db, osmfile, stops_file, gtfs_file, stopsprovider):
         if zhv_importer:
             zhv_importer.patch_haltestellen_unified()
     else:
+        zhv_importer.patch_zhv_issues()
         zhv_importer.load_haltestellen_unified()
         
     importer.update_linien()

@@ -1,6 +1,6 @@
 import csv
 import datetime
-from .util import xstr, drop_table_if_exists
+from .util import to_iso_date_format, xstr, drop_table_if_exists
 import logging
 
 logger = logging.getLogger('DelfiStopsImporter')
@@ -15,9 +15,8 @@ class DelfiStopsImporter():
 		drop_table_if_exists(self.db, "zhv")
 		cur = self.db.cursor()
 		cur.execute("""CREATE TABLE zhv (SeqNo, Type, DHID, Parent, Name, 
-			Latitude REAL, Longitude REAL, MunicipalityCode, Municipality, DistrictCode, District, Condition, 
-			State, Description,
-			Authority, DelfiName, TariffDHID, TariffName)""")
+			Latitude REAL, Longitude REAL, MunicipalityCode, Municipality, DistrictCode, District, Description,
+			Authority, DelfiName, THID, TariffProvider, LastOperationDate)""")
 
 		with open(stops_file,'r',encoding='utf-8-sig') as csvfile:
 			dr = csv.DictReader(csvfile, delimiter=';', quotechar='"')
@@ -33,19 +32,18 @@ class DelfiStopsImporter():
 				xstr(row['Municipality']),
 				xstr(row['DistrictCode']),
 				xstr(row['District']),
-				xstr(row['Condition']), 
-				xstr(row['State']),
 				xstr(row['Description']),
 				xstr(row['Authority']),
 				xstr(row['DelfiName']),
-				xstr(row['TariffDHID']),
-				xstr(row['TariffName'])
+				xstr(row['THID']),
+				xstr(row['TariffProvider']),
+				# convert '31.12.1999 00:00:00' to '1999-31-12'
+				to_iso_date_format(row['LastOperationDate'])
 				) for row in dr]
 			logger.info("Loaded stops from DELF zHV")
 			cur.executemany("""INSERT INTO zhv (SeqNo, Type, DHID, Parent, Name, 
-			Latitude, Longitude, MunicipalityCode, Municipality, DistrictCode, District, Condition, 
-			State, Description,
-			Authority, DelfiName, TariffDHID, TariffName) VALUES (?{})""".format(",?"*17), to_db)
+			Latitude, Longitude, MunicipalityCode, Municipality, DistrictCode, District, Description,
+			Authority, DelfiName, THID, TariffProvider, LastOperationDate) VALUES (?{})""".format(",?"*16), to_db)
 			logger.info("Inserted stops into table zhv")
 
 		cur.execute("SELECT InitSpatialMetaData()")
@@ -54,16 +52,47 @@ class DelfiStopsImporter():
 		logger.info("Updated zhv.geom")
 		cur.execute("CREATE INDEX id_steig_idx ON zhv(DHID)")
 
+	def patch_zhv_issues(self):
+		### Patches LastOperationDate Issues 
+		### "Unserved" stops currently contained in DELFI GTFS stops.txt receive 2023-12-31 as LastOperationDate
+		### "Unserved" stops of served parent stops receive 2999-12-31 as LastOperationDate, if not any quay is served 
+		cur = self.db.cursor()
+		cur.execute("""
+			UPDATE zhv SET LastOperationDate='2023-12-31'
+	 		 WHERE LastOperationDate='1999-12-31'
+			 AND dhid IN (SELECT stop_id FROM gtfs_stops)""")
+   
+		cur.execute("""
+			WITH zhv_quays_with_parent_station AS
+			(SELECT q.*, a.parent station_dhid 
+			FROM zhv q 
+			JOIN zhv a on q.parent = a.dhid
+			WHERE q.type='Q'),
+			dhids_of_stations_served AS
+			(SELECT dhid 
+			   FROM zhv
+			  WHERE LastOperationDate>'1999-12-31'
+			    AND TYPE='S')
+			UPDATE zhv SET LastOperationDate='2999-12-31'
+			WHERE LastOperationDate='1999-12-31'
+			  AND type = 'Q'
+			  AND dhid IN (
+			  	 SELECT dhid FROM zhv_quays_with_parent_station 
+			  	  WHERE station_dhid IN dhids_of_stations_served
+			        AND station_dhid NOT IN
+			    (SELECT station_dhid FROM zhv_quays_with_parent_station
+			      WHERE LastOperationDate>'1999-12-31'))""")
+
 	def load_haltestellen_unified(self):
 		drop_table_if_exists(self.db, "haltestellen_unified")
 		cur = self.db.cursor()
 	
 		cur.execute("""CREATE TABLE haltestellen_unified AS 
-			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, q.parent parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv q ON q.parent=s.dhid WHERE q.type ='Q' AND s.type='S' AND NOT q.state = 'Unserved' AND NOT q.condition='OutOfOrder'
+			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, q.parent parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv q ON q.parent=s.dhid WHERE q.type ='Q' AND s.type='S' AND q.LastOperationDate >= DATE()
 			UNION ALL
-			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, s.dhid parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv a ON a.parent=s.dhid JOIN zhv q ON q.parent=a.dhid WHERE q.type ='Q' AND a.type='A' AND s.type='S' AND NOT q.state = 'Unserved' AND NOT q.condition='OutOfOrder'
+			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, s.dhid parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv a ON a.parent=s.dhid JOIN zhv q ON q.parent=a.dhid WHERE q.type ='Q' AND a.type='A' AND s.type='S' AND q.LastOperationDate>= DATE()
 			UNION ALL
-			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, s.description Haltebeschreibung, s.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, s.Latitude lat, s.Longitude lon, 'Halt' Art, '' Name_Steig, '' mode, NULL parent, '' match_state, NULL linien, '' platform_code from zhv s WHERE s.type='S' AND s.dhid NOT IN (SELECT a.parent FROM zhv q JOIN zhv a ON q.parent=a.dhid WHERE q.type='Q') AND NOT s.state = 'Unserved' AND NOT s.condition='OutOfOrder'""")
+			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, s.description Haltebeschreibung, s.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, s.Latitude lat, s.Longitude lon, 'Halt' Art, '' Name_Steig, '' mode, NULL parent, '' match_state, NULL linien, '' platform_code from zhv s WHERE s.type='S' AND s.dhid NOT IN (SELECT a.parent FROM zhv q JOIN zhv a ON q.parent=a.dhid WHERE q.type='Q') AND s.LastOperationDate>= DATE()""")
 		logger.info("Created table haltestellen_unified")
 		# Remove Zugang/Ersatzverkehre (=Unserved?)
 		cur.execute("DELETE FROM haltestellen_unified WHERE Haltebeschreibung LIKE '%Zugang%' OR Haltebeschreibung LIKE '%Ersatz%' " )
