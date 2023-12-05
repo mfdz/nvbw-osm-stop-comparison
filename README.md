@@ -102,4 +102,10 @@ docker run --rm -v $(PWD)/data:/usr/src/app/data -v $(PWD)/out:/usr/src/app/out 
 ```
 
 ## Running tests
-
+Run the tests by executing one of the commands respectively:
+```shell
+python3 -m unittest tests/test_stop_matcher.py
+```
+```shell
+python3 -m unittest tests/test_match_picker.py
+```
