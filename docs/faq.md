@@ -16,6 +16,7 @@ Beim Vergleich der Schreibweisen-Ähnlichkeit der gematchten Stops sind die Unte
 
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
+
 1. Abkürzungen. Sowohl in OSM als auch im Haltestellenregister können Abkürzungen große Namensunterschiede erzeugen. 
 2. Ortsname oder Ortszusatz nur in einem der beiden Halte im Haltestellennamen
 3. Umbenennungen
@@ -86,6 +87,7 @@ Wir betrachten die einander zugeordneten Matches als relativ sicher zueinander g
 
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
+
 1. Die Haltestelle hat in OSM kein "name"-Eigenschaft
 
 #### Was ist zu tun?
@@ -122,11 +124,13 @@ Der offizielle Halt konnte, obwohl er laut Haltestellenverzeichnis bedient wird 
 
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
+
 1. Der Halt wird zwar (noch) mit Condition "Served" oder "Unknown" im zHV geführt, ist jedoch vor Ort bereits abgebaut, oder noch nicht gebaut. Dies lässt sich derzeit leider aufgrund von unzuverlässigen Angaben für die Eigenschaften "Condition" und "State" im zHV nicht erkennen (siehe z.B. https://github.com/mfdz/zhv-issues/issues/1).
 2. Im GTFS fehlen viele Schulbus-Linien, Fährverbindungen,  Ruf- oder Bürgerbusse im GTFS-Feed, sodass dieser Halt bedient sein kann, jedoch in OSM noch nicht erfasst ist (siehe z.B. https://github.com/mfdz/GTFS-Issues/issues/106).
 
 #### Was ist zu tun?
 Je nach obiger Ursache wären mögliche Problemlösungen:
+
 1. Falls der Halt nicht bedient wird, sollte Status im zHV aktualisiert werden.
 2. Handelt es sich um einen bedienten Halt, sollten die bedienenden Linien auch im GTFS geführt werden. Flexiblere Bedienformen wie z.B. Ruf- und Bürgerbusse können bei Bedarf mit gebräuchlichen Erweiterungen wie GTFS-Flex umfassender beschrieben werden.
 
