@@ -68,6 +68,12 @@ class DelfiStopsImporter():
 		cur.execute("CREATE INDEX id_idx ON haltestellen_unified(globaleID)")
 		cur.execute("SELECT AddGeometryColumn('haltestellen_unified', 'the_geom', 4326, 'POINT','XY')")
 		cur.execute("UPDATE haltestellen_unified SET the_geom = MakePoint(lon,lat, 4326) WHERE lon is NOT NULL")
+		logger.info("Updated table haltestellen_unified.geom, .ortsteil and .haltestelle")
+		self.db.commit()
+		self.patch_names_and_settlement()
+
+	def patch_names_and_settlement(self):
+		cur = self.db.cursor()
 		cur.execute("""UPDATE haltestellen_unified 
 						  SET ortsteil=substr(haltestelle_lang, 0, INSTR(haltestelle_lang, ',')),
 						      haltestelle = substr(haltestelle_lang, INSTR(haltestelle_lang, ',')+2)
@@ -78,7 +84,44 @@ class DelfiStopsImporter():
 						      haltestelle = substr(haltestelle_lang, instr(substr(haltestelle_lang,5),' ')+5)
 						WHERE ortsteil in ('Bad ') AND INSTR(haltestelle_lang, ',') = 0 
 						  AND instr(substr(haltestelle_lang,5),' ')>0""")
-		logger.info("Updated table haltestellen_unified.geom, .ortsteil and .haltestelle")
+
+		# For stop names with comma, we use a heuristic to determine, if the settlement is before or after the comma:
+		drop_table_if_exists(self.db, "tmp_name_parts_variance")
+		cur.execute("""
+			CREATE TABLE tmp_name_parts_variance AS 
+		    WITH separierte_hastellennamen AS
+				(SELECT substr(Globaleid, 1,8) kreis, Haltestelle_lang, 
+					    substr(Haltestelle_lang, 1,instr(h.haltestelle_lang, ',')-1) vor_komma, 
+					    trim(substr(Haltestelle_lang, instr(h.haltestelle_lang, ',')+1)) nach_komma 
+				   FROM haltestellen_unified h)
+
+            SELECT nk.kreis, anzahl_vor_komma, anzahl_nach_komma, 
+		      1000 * anzahl_vor_komma/(anzahl_vor_komma+anzahl_nach_komma) promille_vor_komma 
+		      FROM (SELECT kreis, count(nach_komma) anzahl_nach_komma 
+		      	      FROM (SELECT kreis, nach_komma 
+		      	      	     FROM separierte_hastellennamen 
+		      	      	    GROUP BY nach_komma, kreis) 
+		      	     GROUP BY kreis) nk
+			  LEFT OUTER JOIN 
+			       (SELECT kreis, count(vor_komma) anzahl_vor_komma 
+			       	  FROM (SELECT kreis, vor_komma 
+			       	  	      FROM separierte_hastellennamen 
+			       	  	     GROUP BY  vor_komma, kreis) 
+			       	 GROUP BY kreis) vk
+		        ON vk.kreis=nk.kreis""")
+		
+		cur.execute("""
+			UPDATE haltestellen_unified
+			   SET ortsteil = substr(Haltestelle_lang, 1,instr(haltestelle_lang, ',')-1),
+				   haltestelle = trim(substr(Haltestelle_lang, instr(haltestelle_lang, ',')+1))
+			 WHERE substr(GlobaleId,1,8) IN (SELECT kreis FROM tmp_name_parts_variance WHERE promille_vor_komma < 650) 
+			   AND instr(haltestelle_lang,',')>0""")
+		cur.execute("""
+			UPDATE haltestellen_unified
+			   SET haltestelle= substr(Haltestelle_lang, 1,instr(haltestelle_lang, ',')-1),
+				   ortsteil = trim(substr(Haltestelle_lang, instr(haltestelle_lang, ',')+1))
+			 WHERE substr(GlobaleId,1,8) IN (SELECT kreis FROM tmp_name_parts_variance WHERE promille_vor_komma >= 650) 
+			   AND instr(haltestelle_lang,',')>0""")
 		self.db.commit()
 
 	def patch_haltestellen_unified(self):
