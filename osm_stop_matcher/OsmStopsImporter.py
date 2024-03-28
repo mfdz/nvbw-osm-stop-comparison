@@ -371,7 +371,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.execute("""DELETE FROM osm_stops AS d 
 			                WHERE d.osm_id IN 
 			                (SELECT a.osm_id
-			                   FROM osm_stops a, osm_stops b WHERE a.mode = 'bus' AND a.mode='bus' AND a.public_transport='stop_position' 
+			                   FROM osm_stops a, osm_stops b WHERE a.mode = 'bus' AND b.mode='bus' AND a.public_transport='stop_position' 
 			                    AND a.osm_id != b.osm_id 
 			                    AND b.lat BETWEEN a.lat - 0.0001 AND a.lat + 0.0001 
 			                    AND b.lon BETWEEN a.lon - 0.0001 AND a.lon +0.0001 
