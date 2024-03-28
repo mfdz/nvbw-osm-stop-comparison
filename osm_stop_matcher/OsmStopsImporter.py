@@ -254,8 +254,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		
 	def store_platform_nodes(self):
 		self.db.executemany("INSERT INTO platform_nodes VALUES (?,?)", self.platform_nodes)
-		self.db.execute("CREATE INDEX pl_nd_idx ON platform_nodes(node_id)")
-		self.db.execute("CREATE INDEX pl_wy_idx ON platform_nodes(way_id)")
 		self.db.commit()
 
 	def store_successors(self, rows):
@@ -426,7 +424,6 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.commit()
 
 	def deduce_missing_names_from_close_by_stops(self):
-		self.db.execute("""CREATE INDEX stops_lat_lon ON osm_stops(lat,lon)""")
 		cur = self.db.execute("""
 			SELECT osm_id, name, dist FROM (
 				SELECT nn.osm_id, wn.name, MIN(abs(wn.lat-nn.lat)+abs(wn.lon-nn.lon)) dist
@@ -482,6 +479,16 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.db.execute("""ALTER TABLE osm_stops ADD COLUMN match_state TEXT""")
 		self.db.commit()
 
+	def create_indexes(self):
+		"""
+		Creates indexes which improve data pre-processing and matching speed.
+		"""
+		self.db.execute("CREATE INDEX pl_nd_idx ON platform_nodes(node_id)")
+		self.db.execute("CREATE INDEX pl_wy_idx ON platform_nodes(way_id)")
+		self.db.execute("SELECT InitSpatialMetaData()")
+		self.db.execute("SELECT AddGeometryColumn('osm_stops', 'the_geom', 4326, 'POINT','XY')")
+		self.db.execute("""CREATE INDEX stops_lat_lon ON osm_stops(lat,lon)""")
+
 	def export_osm_stops(self):
 		self.store_osm_stops(self.rows_to_import)
 		self.logger.info("Stored osm stops")
@@ -491,6 +498,8 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		self.logger.info("Stored stop areas")	
 		self.store_successors(self.pred)
 		self.logger.info("Stored successors")
+		self.create_indexes()
+		self.logger.info("Created osm indexes")
 		self.add_prev_and_next_stop_names()
 		self.logger.info("Added prev and next stop names")
 		self.update_infos_inherited_from_stop_areas_and_platforms()
