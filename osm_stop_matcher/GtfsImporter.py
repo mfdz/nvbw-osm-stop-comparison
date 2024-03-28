@@ -17,14 +17,24 @@ class GtfsStopsImporter():
         self.db = connection
         self.encoding = 'utf-8-sig'
         
+    def import_agency(self, agency_file):
+        cur = self.db.cursor()
+        drop_table_if_exists(self.db, "gtfs_agency")
+        cur.execute("CREATE TABLE gtfs_agency (agency_id PRIMARY KEY,agency_name);")
+        reader = csv.DictReader(io.TextIOWrapper(agency_file, self.encoding))
+        to_db = [(i['agency_id'], i['agency_name']) for i in reader]
+
+        cur.executemany("INSERT INTO gtfs_agency (agency_id,agency_name) VALUES (?, ?);", to_db)
+        self.db.commit()
+
     def import_routes(self, routes_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_routes")
-        cur.execute("CREATE TABLE gtfs_routes (route_id PRIMARY KEY,route_type,route_short_name);")
+        cur.execute("CREATE TABLE gtfs_routes (route_id PRIMARY KEY,route_type,route_short_name, route_long_name,agency_id);")
         reader = csv.DictReader(io.TextIOWrapper(routes_file, self.encoding))
-        to_db = [(i['route_id'], i['route_type'], i['route_short_name']) for i in reader]
+        to_db = [(i['route_id'], i['route_type'], i['route_short_name'], i['route_long_name'],i['agency_id']) for i in reader]
 
-        cur.executemany("INSERT INTO gtfs_routes (route_id,route_type,route_short_name) VALUES (?, ?, ?);", to_db)
+        cur.executemany("INSERT INTO gtfs_routes (route_id,route_type,route_short_name, route_long_name, agency_id) VALUES (?, ?, ?, ?, ?);", to_db)
         self.db.commit()
 
     def import_trips(self, trips_file):
@@ -90,6 +100,8 @@ class GtfsStopsImporter():
         
     def import_gtfs(self, gtfs_file):
         with zipfile.ZipFile(gtfs_file) as gtfs:
+            with gtfs.open('agency.txt', 'r') as agency_file:
+                self.import_agency(agency_file)
             with gtfs.open('routes.txt', 'r') as routes_file:
                 self.import_routes(routes_file)
             with gtfs.open('trips.txt', 'r') as trips_file:
