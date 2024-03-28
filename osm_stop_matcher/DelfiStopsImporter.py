@@ -52,47 +52,16 @@ class DelfiStopsImporter():
 		logger.info("Updated zhv.geom")
 		cur.execute("CREATE INDEX id_steig_idx ON zhv(DHID)")
 
-	def patch_zhv_issues(self):
-		### Patches LastOperationDate Issues 
-		### "Unserved" stops currently contained in DELFI GTFS stops.txt receive 2023-12-31 as LastOperationDate
-		### "Unserved" stops of served parent stops receive 2999-12-31 as LastOperationDate, if not any quay is served 
-		cur = self.db.cursor()
-		cur.execute("""
-			UPDATE zhv SET LastOperationDate='2023-12-31'
-	 		 WHERE LastOperationDate='1999-12-31'
-			 AND dhid IN (SELECT stop_id FROM gtfs_stops)""")
-   
-		cur.execute("""
-			WITH zhv_quays_with_parent_station AS
-			(SELECT q.*, a.parent station_dhid 
-			FROM zhv q 
-			JOIN zhv a on q.parent = a.dhid
-			WHERE q.type='Q'),
-			dhids_of_stations_served AS
-			(SELECT dhid 
-			   FROM zhv
-			  WHERE LastOperationDate>'1999-12-31'
-			    AND TYPE='S')
-			UPDATE zhv SET LastOperationDate='2999-12-31'
-			WHERE LastOperationDate='1999-12-31'
-			  AND type = 'Q'
-			  AND dhid IN (
-			  	 SELECT dhid FROM zhv_quays_with_parent_station 
-			  	  WHERE station_dhid IN dhids_of_stations_served
-			        AND station_dhid NOT IN
-			    (SELECT station_dhid FROM zhv_quays_with_parent_station
-			      WHERE LastOperationDate>'1999-12-31'))""")
-
 	def load_haltestellen_unified(self):
 		drop_table_if_exists(self.db, "haltestellen_unified")
 		cur = self.db.cursor()
 	
 		cur.execute("""CREATE TABLE haltestellen_unified AS 
-			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, q.parent parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv q ON q.parent=s.dhid WHERE q.type ='Q' AND s.type='S' AND q.LastOperationDate >= DATE()
+			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, q.parent parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv q ON q.parent=s.dhid WHERE q.type ='Q' AND s.type='S'
 			UNION ALL
-			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, s.dhid parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv a ON a.parent=s.dhid JOIN zhv q ON q.parent=a.dhid WHERE q.type ='Q' AND a.type='A' AND s.type='S' AND q.LastOperationDate>= DATE()
+			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, q.description Haltebeschreibung, q.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, q.Latitude lat, q.Longitude lon, 'Steig' Art, '' Name_Steig, '' mode, s.dhid parent, '' match_state, NULL linien, '' platform_code from zhv s JOIN zhv a ON a.parent=s.dhid JOIN zhv q ON q.parent=a.dhid WHERE q.type ='Q' AND a.type='A' AND s.type='S'
 			UNION ALL
-			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, s.description Haltebeschreibung, s.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, s.Latitude lat, s.Longitude lon, 'Halt' Art, '' Name_Steig, '' mode, NULL parent, '' match_state, NULL linien, '' platform_code from zhv s WHERE s.type='S' AND s.dhid NOT IN (SELECT a.parent FROM zhv q JOIN zhv a ON q.parent=a.dhid WHERE q.type='Q') AND s.LastOperationDate>= DATE()""")
+			SELECT s.District Landkreis, s.Municipality Gemeinde, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), 1, instr(REPLACE(s.Name,',',' '),' '))) Ortsteil, LTRIM(SUBSTR(REPLACE(s.Name,',',' '), instr(REPLACE(s.Name,',',' '),' '))) Haltestelle, s.Name Haltestelle_lang, s.description Haltebeschreibung, s.dhid GlobaleId, '' HalteTyp, '' gueltigAb, '' gueltigBis, s.Latitude lat, s.Longitude lon, 'Halt' Art, '' Name_Steig, '' mode, NULL parent, '' match_state, NULL linien, '' platform_code from zhv s WHERE s.type='S' AND s.dhid NOT IN (SELECT a.parent FROM zhv q JOIN zhv a ON q.parent=a.dhid WHERE q.type='Q')""")
 		logger.info("Created table haltestellen_unified")
 		# Remove Zugang/Ersatzverkehre (=Unserved?)
 		cur.execute("DELETE FROM haltestellen_unified WHERE Haltebeschreibung LIKE '%Zugang%' OR Haltebeschreibung LIKE '%Ersatz%' " )
