@@ -89,7 +89,7 @@ class GtfsStopsImporter():
     def import_stop_times(self, stop_times_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_stop_times")
-        cur.execute("CREATE TABLE gtfs_stop_times (trip_id,stop_id,stop_sequence);")
+        cur.execute("CREATE TABLE gtfs_stop_times (trip_id,stop_id,stop_sequence INT);")
         cur.execute("CREATE UNIQUE INDEX gst ON gtfs_stop_times(trip_id,stop_id,stop_sequence);")
 
         reader = csv.DictReader(io.TextIOWrapper(stop_times_file, self.encoding))
