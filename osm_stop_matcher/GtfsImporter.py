@@ -16,7 +16,7 @@ class GtfsStopsImporter():
     def __init__(self, connection):
         self.db = connection
         self.encoding = 'utf-8-sig'
-        
+    
     def import_agency(self, agency_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_agency")
@@ -128,6 +128,8 @@ class GtfsStopsImporter():
 
     def update_name_steig(self):
         cur = self.db.cursor()
+        self.db("CREATE INDEX trip_stop_times_idx on gtfs_stop_times(trip_id, stop_sequence)")
+        logger.info("Created index trip_stop_times_idx")
         query = """SELECT GROUP_CONCAT(stop_name,'/') ri, stop_id FROM (
             SELECT DISTINCT st_c.stop_id, g_n.stop_name
             FROM gtfs_stop_times st_c
