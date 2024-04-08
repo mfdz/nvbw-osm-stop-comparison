@@ -2,7 +2,7 @@
 This project provides some scripts to compare officially provided stops from e or DELFI e.V. with stops extracted from OpenStreetMap.
 
 Currently supported are the following stop sources:
-* [stops list Nahverkerkehrsgesellschaft Baden-Württemberg (NVBW)](https://www.mobidata-bw.de/dataset/haltestellen-baden-wuerttemberg)
+* [stops list Nahverkehrsgesellschaft Baden-Württemberg (NVBW)](https://www.mobidata-bw.de/dataset/haltestellen-baden-wuerttemberg)
 * DELFI's zentrales Haltestellenverzeichnis (zHV)
 * a GTFS file (Beta, developed for bwgesamt.zip, currently code makes various assumptions regarding the content )
 
@@ -16,9 +16,9 @@ To compare transit stops with osm data, you need
 * a gtfs file e.g. curl --output gtfs-germany.zip -L https://data.public-transport.earth/gtfs/de
 
 
-These can be downloade e.g. with the provided scripts `download_delfi_and_osm_data.sh` or `download_nvbw_and_osm_data.sh`.
+These can be downloaded e.g. with the provided scripts `download_delfi_and_osm_data.sh` or `download_nvbw_and_osm_data.sh`.
 
-### sqlite and spatiallite on mac
+### sqlite and spatialite on mac
 see e.g. https://medium.com/@carusot42/installing-and-loading-spatialite-on-macos-28bf677f0436
 
 ```sh
@@ -28,7 +28,7 @@ find /usr/local -path "*sqlite3" | grep -e "sqlite3$" | grep "/bin"
 ```
 
 ### Python requirements 
-Optionally, you might want to create a python environment to install needed libraries in an isolated enviroment:
+Optionally, you might want to create a python environment to install needed libraries in an isolated environment:
 
 ```sh
 > makevirtualenv nosc
