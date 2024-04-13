@@ -47,3 +47,9 @@ def xstr(str):
 
 def get_parent_station(ifopt_id):
 	return re.sub(r'^([^:_]+:[^:_]+:[^:_]+)(_[^:]+)?(:.+)?$', r'\1', ifopt_id)
+
+def to_iso_date_format(iso_timestamp_string):
+	if '' == iso_timestamp_string:
+		return None
+	else:
+		return iso_timestamp_string[0:10]

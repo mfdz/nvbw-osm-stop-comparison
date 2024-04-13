@@ -293,7 +293,6 @@ class StopMatcher():
 		# Add Spatial columns
 		try:
 			self.db.execute("SELECT InitSpatialMetaData()")
-			self.db.execute("SELECT AddGeometryColumn('osm_stops', 'the_geom', 4326, 'POINT','XY')")
 			self.db.execute("SELECT AddGeometryColumn('matches', 'the_geom', 4326, 'LINESTRING','XY')")
 			self.db.execute("SELECT AddGeometryColumn('candidates', 'the_geom', 4326, 'LINESTRING','XY')")
 		except:
