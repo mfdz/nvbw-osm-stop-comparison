@@ -4,11 +4,11 @@
 
 ### MATCHED
 #### Bedeutung
-Unser Matching hat hier eine weitestgehende Übereinstimmung zwischen offizieller Haltestellen/Steig-Information und einer OSM-Haltestelle festgestellt. Dies bedeutet jedoch nicht, dass diese 100% übereinstimmen müssen. Die Bewertung der Übereinstimmung vermittelt einen Eindruck, für wie zuverlässig wir die Zuordnung erachten. In diese gehen ein: Übereinstimmung der DHID (Deutsche Haltelstellen-ID), räumliche Distanz, Namensähnlichkeit, Übereinstimmung der bedienten Verkehrsmittel, Übereinstimmung der Vorgänger-/Nachfolge-Halte der bedienten Linien, Übereinstimmung der Gleis-/Steignummer.
-Ist eine Zuordnung zwar erfolgt, einzelne Aspekte weichen jedoch unerwartet deutlich voneinander ab, erhält diese Zuordnung einen Status "MATCHED_THOUGH_xxx", wobei xxx die mutmaßlich in der offiziellen Quelle oder OSM zu korrigierende) Abweichung benennt.
+Unser Matching hat hier eine weitestgehende Übereinstimmung zwischen offizieller Haltestellen/Steig-Information und einer OSM-Haltestelle festgestellt. Dies bedeutet jedoch nicht, dass diese 100 % übereinstimmen müssen. Die Bewertung der Übereinstimmung vermittelt einen Eindruck, für wie zuverlässig wir die Zuordnung erachten. In diese gehen ein: Übereinstimmung der DHID (Deutsche Haltestellen-ID), räumliche Distanz, Namensähnlichkeit, Übereinstimmung der bedienten Verkehrsmittel, Übereinstimmung der Vorgänger-/Nachfolge-Halte der bedienten Linien, Übereinstimmung der Gleis-/Steignummer.
+Ist eine Zuordnung zwar erfolgt, einzelne Aspekte weichen jedoch unerwartet deutlich voneinander ab, erhält diese Zuordnung einen Status "MATCHED_THOUGH_xxx", wobei xxx die mutmaßlich in der offiziellen Quelle oder OSM zu korrigierende Abweichung benennt.
 Trotz Status MATCHED können Eigenschaften zwischen Haltestellen-Register-Daten und OSM noch so weit voneinander abweichen, dass eine Korrektur sinnvoll wäre. Um die Bearbeitung auf die aus unserer Sicht kritischsten Abweichungen zu konzentrieren und zu viele false positives zu vermeiden, haben wir die Schwellwerte aktuell recht hoch angesetzt.
 
-Darüberhinaus ist es immer möglich, dass wir eine falsche Zuordnung getroffen haben. In diesem Fall bitten wir um Rückmeldung eines konkreten Beispiels unter https://github.com/mfdz/nvbw-osm-stop-comparison/issues.
+Darüber hinaus ist es immer möglich, dass wir eine falsche Zuordnung getroffen haben. In diesem Fall bitten wir um Rückmeldung eines konkreten Beispiels unter https://github.com/mfdz/nvbw-osm-stop-comparison/issues.
 
 ### MATCHED_THOUGH_NAMES_DIFFER
 #### Bedeutung
@@ -16,17 +16,18 @@ Beim Vergleich der Schreibweisen-Ähnlichkeit der gematchten Stops sind die Unte
 
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
+
 1. Abkürzungen. Sowohl in OSM als auch im Haltestellenregister können Abkürzungen große Namensunterschiede erzeugen. 
-2. Ortsname oder Ortszusatz nur in einem der beiden Halte im Haltestellennamen.
-3. Umbenennungen.
-4. Unterschiedliche Namen je Steig/Bereich. Häufig haben Bahnhalte und Bushaltestellen, die unter einer Haltestelle zusammengefasst sind, unterschiedliche Benennungen, zum Beispiel "Hauptbf. Arnulf-Klett-Platz" und "Stuttgart". Die Haltstellen-Register beinhalten hierzu so gut wie keine Daten während OSM-Halte üblicherweise die in Anzeigen und Ansagen gebräuchlichen steig- oder bereichs-spezifischen Namen verwenden.
+2. Ortsname oder Ortszusatz nur in einem der beiden Halte im Haltestellennamen
+3. Umbenennungen
+4. Unterschiedliche Namen je Steig/Bereich. Häufig haben Bahnhalte und Bushaltestellen, die unter einer Haltestelle zusammengefasst sind, unterschiedliche Benennungen, zum Beispiel "Hauptbf. Arnulf-Klett-Platz" und "Stuttgart". Die Haltestellen-Register beinhalten hierzu so gut wie keine Daten während OSM-Halte üblicherweise die in Anzeigen und Ansagen gebräuchlichen steig- oder bereichs-spezifischen Namen verwenden.
 5. Fehlerhaftes Matching. 
 
 #### Was ist zu tun?
 Wie das Problem zu korrigieren ist, hängt natürlich von der zugrundeliegenden Ursache ab.
 Nachfolgend listen wir Anregungen zur möglichen Behebung auf, jeweils in Bezug zur o.g. Ursache.
 
-1. Wir vertreten die Auffassung, dass Namen weder im zHV noch in OSM  abgekürzt werden sollten. Dürfen für unterschiedliche Anwendungsfälle (z.B. Fahrkartendrucker, Bordanzeige, DFI, Auskunftsystem etc.) bestimmte Maximallängen nicht überschritten werden, so sollten aus unser Sicht zusätzliche Anwendungsfall-spezifische Felder ins Register aufgenommen werden, wie dies beispielsweise beim NVBW-Haltestellenregister realisiert wurde. Im jeweiligen Datensatz sollte der Name ausgeschrieben werden.
+1. Wir vertreten die Auffassung, dass Namen weder im zHV noch in OSM abgekürzt werden sollten. Dürfen für unterschiedliche Anwendungsfälle (z.B. Fahrkartendrucker, Bordanzeige, DFI, Auskunftssystem etc.) bestimmte Maximallängen nicht überschritten werden, so sollten aus unserer Sicht zusätzliche Anwendungsfall-spezifische Felder ins Register aufgenommen werden, wie dies beispielsweise beim NVBW-Haltestellenregister realisiert wurde. Im jeweiligen Datensatz sollte der Name ausgeschrieben werden.
 2. Wir versuchen bereits, den Ortsnamen vom Haltestellennamen abzuspalten und bei Vergleichen zu ignorieren, verwenden jedoch noch recht einfache Ansätze. Bei konkreten Änderungsvorschlägen gerne mit konkretem Beispiel über https://github.com/mfdz/nvbw-osm-stop-comparison/issues melden.
 3. Der Name der noch nicht aktualisierten Haltestelle sollte korrigiert werden.
 4. Das Haltestellenregister sollte solche Abweichungen in einheitlicher Form bereitstellen.
@@ -60,7 +61,7 @@ Nachfolgend listen wir Anregungen zur möglichen Behebung auf, jeweils in Bezug 
 #### Bedeutung
 Liegen die Koordinate der offiziellen Haltestelle und der gematchten OSM-Haltestelle weit voneinander entfernt, weisen wir dies mit diesem Status aus.
 Aktuell ordnen wir Halte nur einander zu, wenn diese maximal 400 Meter auseinander liegen. 
-Weiter entfernte werden derzeit nicht (oder potentiell fälschlicherweise anderen Haltestellen) zugeordnet.
+Weiter entfernte werden derzeit nicht (oder potenziell fälschlicherweise anderen Haltestellen) zugeordnet.
 Derzeit weisen wir Entfernungen erst ab einer Distanz > 200 m als zu groß aus. Dies deshalb, weil insbesondere für Bahnsteige nicht klar bestimmt ist, welche Koordinate eines Gleises als Halt angegeben werden sollte und damit, trotz korrekter Referenzierung des gleichen Gleises, die Entfernung groß sein können.
 
 #### Mögliche Ursachen
@@ -75,7 +76,7 @@ Mögliche Ursachen können sein:
 Wie das Problem zu korrigieren ist, hängt natürlich von der zugrundeliegenden Ursache ab.
 Nachfolgend listen wir Anregungen zur möglichen Behebung auf, jeweils in Bezug zur o.g. Ursache.
 
-1. Im zHV veröffentlichte Geokoordinaten der Haltestellen sollten aus unserer Sicht der Koordinate ihrer realen Lage entsprechen und sollten in den führenden System angepasst werden. Sind aus technischen Gründen für bestimmte Anwendungsfälle durch das Verkehrsunternehmen andere Koordinaten erforderlich, sollten diese intern zusätzlich geführt werden.
+1. Im zHV veröffentlichte Geokoordinaten der Haltestellen sollten aus unserer Sicht der Koordinate ihrer realen Lage entsprechen und sollten in den führenden Systemen angepasst werden. Sind aus technischen Gründen für bestimmte Anwendungsfälle durch das Verkehrsunternehmen andere Koordinaten erforderlich, sollten diese intern zusätzlich geführt werden.
 2. Die Koordinate sollte durch die datenführende Organisation korrigiert werden. 
 3. Koordinate sollte in OSM oder der Datenbestand der Organisation geprüft werden. Hierzu können aktuelle Luftbilder oder eine Vor-Ort Prüfung genutzt werden.
 4. Ein falsches Matching ist umso wahrscheinlicher, je mehr Informationen an umgebenden Haltestellen abweichen. Durch Vervollständigung/Korrektur dieser wird die Wahrscheinlichkeit für korrekte Zuordnung höher. Insbesondere die Eintragung der korrekten DHID als ref:IFOPT in OSM ist die sicherste Methode, eine Zuordnung zu erreichen. Falls dies alles nicht hilft, könnt Ihr auch einen Fehler unter https://github.com/mfdz/nvbw-osm-stop-comparison einstellen. 
@@ -86,10 +87,11 @@ Wir betrachten die einander zugeordneten Matches als relativ sicher zueinander g
 
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
+
 1. Die Haltestelle hat in OSM kein "name"-Eigenschaft.
 
 #### Was ist zu tun?
-1. In OSM sollte die name-Eigenschaft erfasst werden. Idealerweise verfügt die erfassende Person über lokales Wissen, um die tatsächlich gebräuchliche Schreibweise zu erfassen. Aus dem Haltestelllenregister sollten die Daten nur übernommen werden, wenn alle sonstigen Match-Kriterien eine korrekte Zuordnung vermuten lassen.
+1. In OSM sollte die name-Eigenschaft erfasst werden. Idealerweise verfügt die erfassende Person über lokales Wissen, um die tatsächlich gebräuchliche Schreibweise zu erfassen. Aus dem Haltestellenregister sollten die Daten nur übernommen werden, wenn alle sonstigen Match-Kriterien eine korrekte Zuordnung vermuten lassen.
 
 ### MATCHED_AMBIGOUSLY
 In OSM existieren mehrere Haltestellen (üblicherweise Steige in unterschiedliche Fahrtrichtungen), im Haltestellenregister jedoch nur einer mit gleicher DHIHD. 
@@ -122,11 +124,13 @@ Der offizielle Halt konnte, obwohl er laut Haltestellenverzeichnis bedient wird 
 
 #### Mögliche Ursachen
 Mögliche Ursachen können sein:
+
 1. Der Halt wird zwar (noch) mit Condition "Served" oder "Unknown" im zHV geführt, ist jedoch vor Ort bereits abgebaut, oder noch nicht gebaut. Dies lässt sich derzeit leider aufgrund von unzuverlässigen Angaben für die Eigenschaften "Condition" und "State" im zHV nicht erkennen (siehe z.B. https://github.com/mfdz/zhv-issues/issues/1).
 2. Im GTFS fehlen viele Schulbus-Linien, Fährverbindungen,  Ruf- oder Bürgerbusse im GTFS-Feed, so dass dieser Halt bedient sein kann, jedoch in OSM noch nicht erfasst ist (siehe z.B. https://github.com/mfdz/GTFS-Issues/issues/106).
 
 #### Was ist zu tun?
 Je nach obiger Ursache wären mögliche Problemlösungen:
+
 1. Falls der Halt nicht bedient wird, sollte Status im zHV aktualisiert werden.
 2. Handelt es sich um einen bedienten Halt, sollten die bedienenden Linien auch im GTFS geführt werden. Flexiblere Bedienformen wie z.B. Ruf- und Bürgerbusse können bei Bedarf mit gebräuchlichen Erweiterungen wie GTFS-Flex umfassender beschrieben werden.
 
