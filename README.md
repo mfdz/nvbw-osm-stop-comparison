@@ -16,9 +16,9 @@ To compare transit stops with osm data, you need
 * a gtfs file e.g. curl --output gtfs-germany.zip -L https://data.public-transport.earth/gtfs/de
 
 
-These can be downloade e.g. with the provided scripts `download_delfi_and_osm_data.sh` or `download_nvbw_and_osm_data.sh`.
+These can be downloaded e.g. with the provided scripts `download_delfi_and_osm_data.sh` or `download_nvbw_and_osm_data.sh`.
 
-### sqlite and spatiallite on Mac
+### sqlite and spatialite on Mac
 see e.g. https://medium.com/@carusot42/installing-and-loading-spatialite-on-macos-28bf677f0436
 
 ```shell

@@ -16,15 +16,25 @@ class GtfsStopsImporter():
     def __init__(self, connection):
         self.db = connection
         self.encoding = 'utf-8-sig'
-        
+    
+    def import_agency(self, agency_file):
+        cur = self.db.cursor()
+        drop_table_if_exists(self.db, "gtfs_agency")
+        cur.execute("CREATE TABLE gtfs_agency (agency_id PRIMARY KEY,agency_name);")
+        reader = csv.DictReader(io.TextIOWrapper(agency_file, self.encoding))
+        to_db = [(i['agency_id'], i['agency_name']) for i in reader]
+
+        cur.executemany("INSERT INTO gtfs_agency (agency_id,agency_name) VALUES (?, ?);", to_db)
+        self.db.commit()
+
     def import_routes(self, routes_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_routes")
-        cur.execute("CREATE TABLE gtfs_routes (route_id PRIMARY KEY,route_type,route_short_name);")
+        cur.execute("CREATE TABLE gtfs_routes (route_id PRIMARY KEY,route_type,route_short_name, route_long_name,agency_id);")
         reader = csv.DictReader(io.TextIOWrapper(routes_file, self.encoding))
-        to_db = [(i['route_id'], i['route_type'], i['route_short_name']) for i in reader]
+        to_db = [(i['route_id'], i['route_type'], i['route_short_name'], i['route_long_name'],i['agency_id']) for i in reader]
 
-        cur.executemany("INSERT INTO gtfs_routes (route_id,route_type,route_short_name) VALUES (?, ?, ?);", to_db)
+        cur.executemany("INSERT INTO gtfs_routes (route_id,route_type,route_short_name, route_long_name, agency_id) VALUES (?, ?, ?, ?, ?);", to_db)
         self.db.commit()
 
     def import_trips(self, trips_file):
@@ -79,7 +89,7 @@ class GtfsStopsImporter():
     def import_stop_times(self, stop_times_file):
         cur = self.db.cursor()
         drop_table_if_exists(self.db, "gtfs_stop_times")
-        cur.execute("CREATE TABLE gtfs_stop_times (trip_id,stop_id,stop_sequence);")
+        cur.execute("CREATE TABLE gtfs_stop_times (trip_id,stop_id,stop_sequence INT);")
         cur.execute("CREATE UNIQUE INDEX gst ON gtfs_stop_times(trip_id,stop_id,stop_sequence);")
 
         reader = csv.DictReader(io.TextIOWrapper(stop_times_file, self.encoding))
@@ -90,6 +100,8 @@ class GtfsStopsImporter():
         
     def import_gtfs(self, gtfs_file):
         with zipfile.ZipFile(gtfs_file) as gtfs:
+            with gtfs.open('agency.txt', 'r') as agency_file:
+                self.import_agency(agency_file)
             with gtfs.open('routes.txt', 'r') as routes_file:
                 self.import_routes(routes_file)
             with gtfs.open('trips.txt', 'r') as trips_file:
@@ -116,6 +128,8 @@ class GtfsStopsImporter():
 
     def update_name_steig(self):
         cur = self.db.cursor()
+        self.db("CREATE INDEX trip_stop_times_idx on gtfs_stop_times(trip_id, stop_sequence)")
+        logger.info("Created index trip_stop_times_idx")
         query = """SELECT GROUP_CONCAT(stop_name,'/') ri, stop_id FROM (
             SELECT DISTINCT st_c.stop_id, g_n.stop_name
             FROM gtfs_stop_times st_c
