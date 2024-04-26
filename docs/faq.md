@@ -93,7 +93,7 @@ Mögliche Ursachen können sein:
 #### Was ist zu tun?
 1. In OSM sollte die name-Eigenschaft erfasst werden. Idealerweise verfügt die erfassende Person über lokales Wissen, um die tatsächlich gebräuchliche Schreibweise zu erfassen. Aus dem Haltestellenregister sollten die Daten nur übernommen werden, wenn alle sonstigen Match-Kriterien eine korrekte Zuordnung vermuten lassen.
 
-### MATCHED_AMBIGOUSLY
+### MATCHED_AMBIGUOUSLY
 In OSM existieren mehrere Haltestellen (üblicherweise Steige in unterschiedliche Fahrtrichtungen), im Haltestellenregister jedoch nur einer mit gleicher DHIHD. 
 
 #### Mögliche Ursachen

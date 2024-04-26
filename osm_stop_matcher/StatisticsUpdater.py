@@ -61,7 +61,7 @@ class StatisticsUpdater():
 							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE rating < 0.002)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_THOUGH_REVERSED_DIR' 
 							WHERE globaleID IN (SELECT ifopt_id FROM matches m WHERE successor_rating =-1)""")
-		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_AMBIGOUSLY' 
+		self.db.execute("""UPDATE haltestellen_unified SET match_state='MATCHED_AMBIGUOUSLY' 
 							WHERE globaleID IN (SELECT ifopt_id FROM matches GROUP BY ifopt_id HAVING count(*)>1)""")
 		self.db.execute("""UPDATE haltestellen_unified SET match_state='NO_MATCH' 
 							WHERE globaleID NOT IN (SELECT ifopt_id FROM matches);""")
