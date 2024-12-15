@@ -8,6 +8,7 @@ import sys
 import spatialite
 import sqlite3
 import traceback
+from pathlib import Path
 
 from osm_stop_matcher.StatisticsUpdater import StatisticsUpdater
 from osm_stop_matcher.MatchPicker import MatchPicker
@@ -82,6 +83,7 @@ def load_data(db, osmfile, stops_file, gtfs_file, stopsprovider):
     return metadata
 
 def main(osmfile, db_file, stops_file, gtfs_file, stopsprovider, mode, logfile):
+    Path(logfile).parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=logfile, filemode='w', level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     
     logger = logging.getLogger('compare_stops')
