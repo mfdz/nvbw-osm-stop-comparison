@@ -2,12 +2,9 @@
 Compare OSM stops to NVBW or DELFI provided stops.
 """
 import argparse
-import geojson
 
-import sys
 import spatialite
 import sqlite3
-import traceback
 
 from osm_stop_matcher.StatisticsUpdater import StatisticsUpdater
 from osm_stop_matcher.MatchPicker import MatchPicker
