@@ -89,26 +89,41 @@ class DelfiStopsImporter():
 		drop_table_if_exists(self.db, "tmp_name_parts_variance")
 		cur.execute("""
 			CREATE TABLE tmp_name_parts_variance AS 
-		    WITH separierte_hastellennamen AS
+		    WITH hastellennamen AS
 				(SELECT substr(Globaleid, 1,8) kreis, Haltestelle_lang, 
 					    substr(Haltestelle_lang, 1,instr(h.haltestelle_lang, ',')-1) vor_komma, 
 					    trim(substr(Haltestelle_lang, instr(h.haltestelle_lang, ',')+1)) nach_komma 
-				   FROM haltestellen_unified h)
+				   FROM haltestellen_unified h),
+			separierte_hastellennamen AS
+				(SELECT *
+				   FROM hastellennamen h
+				  WHERE instr(h.haltestelle_lang,',')>0)
 
-            SELECT nk.kreis, anzahl_vor_komma, anzahl_nach_komma, 
-		      1000 * anzahl_vor_komma/(anzahl_vor_komma+anzahl_nach_komma) promille_vor_komma 
-		      FROM (SELECT kreis, count(nach_komma) anzahl_nach_komma 
+            SELECT substr(g.kreis,4) ags, g.kreis, anzahl_vor_komma, anzahl_nach_komma, 
+		      1000 * anzahl_vor_komma/(anzahl_vor_komma+anzahl_nach_komma) promille_vor_komma, anzahl_mit_komma, anzahl_gesamt, 100*anzahl_mit_komma/anzahl_gesamt prozent_mit_komma
+		      FROM (SELECT kreis, count(*) anzahl_gesamt 
+		      	      FROM hastellennamen
+		      	     GROUP BY kreis) g
+			  LEFT OUTER JOIN  
+			       (SELECT kreis, count(*) anzahl_mit_komma 
+		      	      FROM separierte_hastellennamen 
+		      	     GROUP BY kreis) mk
+			    ON g.kreis=mk.kreis
+			  LEFT OUTER JOIN  
+			       (SELECT kreis, count(nach_komma) anzahl_nach_komma 
 		      	      FROM (SELECT kreis, nach_komma 
 		      	      	     FROM separierte_hastellennamen 
 		      	      	    GROUP BY nach_komma, kreis) 
 		      	     GROUP BY kreis) nk
+			    ON g.kreis=nk.kreis
 			  LEFT OUTER JOIN 
 			       (SELECT kreis, count(vor_komma) anzahl_vor_komma 
 			       	  FROM (SELECT kreis, vor_komma 
 			       	  	      FROM separierte_hastellennamen 
 			       	  	     GROUP BY  vor_komma, kreis) 
 			       	 GROUP BY kreis) vk
-		        ON vk.kreis=nk.kreis""")
+		        ON g.kreis=vk.kreis
+		      """)
 		
 		cur.execute("""
 			UPDATE haltestellen_unified
