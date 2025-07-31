@@ -34,7 +34,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		drop_table_if_exists(self.db, 'osm_stops')
 		self.db.execute('''CREATE TABLE osm_stops
 			(osm_id TEXT PRIMARY KEY, name TEXT, network TEXT, operator TEXT, railway TEXT, highway TEXT, public_transport TEXT, lat REAL, lon REAL, 
-			 mode TEXT, type TEXT, ref TEXT, ref_key TEXT, assumed_platform TEXT, empty_name INTEGER)''')
+			 mode TEXT, type TEXT, ref TEXT, ref_key TEXT, assumed_platform TEXT, empty_name INTEGER, kerb_approach_aid TEXT, wheelchair TEXT, tactile_paving TEXT)''')
 		
 		drop_table_if_exists(self.db, 'osm_stop_areas')
 		self.db.execute('''CREATE TABLE osm_stop_areas
@@ -94,7 +94,10 @@ class OsmStopsImporter(osmium.SimpleHandler):
 			stop["ref"],
 			stop["ref_key"],
 			stop["assumed_platform"],
-			0
+			0,
+			stop["tags"].get("kerb:approach_aid"),
+			stop["tags"].get("wheelchair"),
+			stop["tags"].get("tactile_paving"),
 			))
 				
 		if self.counter % 1000 == 0:
@@ -249,7 +252,7 @@ class OsmStopsImporter(osmium.SimpleHandler):
 		return None
 
 	def store_osm_stops(self, rows):
-		self.db.executemany('INSERT INTO osm_stops VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+		self.db.executemany('INSERT INTO osm_stops VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
 		self.db.commit()
 		
 	def store_platform_nodes(self):
