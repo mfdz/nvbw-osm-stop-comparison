@@ -96,6 +96,7 @@ class GtfsStopsImporter():
         to_db = [(i['trip_id'], i['stop_id'], i['stop_sequence']) for i in reader]
 
         cur.executemany("INSERT INTO gtfs_stop_times (trip_id,stop_id,stop_sequence) VALUES (?, ?, ?);", to_db)
+        cur.execute("CREATE INDEX gst_s ON gtfs_stop_times(stop_id);")
         self.db.commit()
         
     def import_gtfs(self, gtfs_file):
