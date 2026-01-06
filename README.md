@@ -1,3 +1,6 @@
+# This project is archived
+This project has been archived. You might consider https://github.com/mfdz/transit-stops-osm-comparison as an alternative.
+
 # GTFS/NVBW OSM Stop Comparison
 This project provides some scripts to compare stops from official data sources (e.g. from [DELFI e.V.](https://www.delfi.de)) with stops extracted from [OpenStreetMap](https://openstreetmap.org).
 
